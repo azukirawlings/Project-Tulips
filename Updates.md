@@ -1,4 +1,3 @@
-```markdown
 # Changelog
 
 ## 1.0.1 beta
@@ -52,4 +51,3 @@
 7. Arrows no longer take a line style.
 8. In a time comparison, units that appear or drop out are marked.
 9. In view mode, the split between the graphics list and the unit panel can be dragged.
-```

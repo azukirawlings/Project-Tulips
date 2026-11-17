@@ -17,7 +17,7 @@ ONLY CHINESE VERSION AVAILABLE
 
 ## Developments
 
-Require Node.js 20+。
+Require Node.js 20+
 
 ```bash
 npm install

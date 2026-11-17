@@ -3,6 +3,9 @@
 Solving your "Tactical Issues" with the greatest convenience.
 ONLY CHINESE VERSION AVAILABLE
 
+## See Updates and Relatives
+* [Uupdates](./Updates.md)
+
 ## Functions
 
 - Arbitrarily paint illustration with tactical signs

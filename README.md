@@ -1,6 +1,7 @@
 # Project Tulips
 
-Solving your "Tactical Issues" with the greatest convenience
+Solving your "Tactical Issues" with the greatest convenience.
+ONLY CHINESE VERSION AVAILABLE
 
 ## Functions
 

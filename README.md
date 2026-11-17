@@ -4,7 +4,7 @@ Solving your "Tactical Issues" with the greatest convenience.
 ONLY CHINESE VERSION AVAILABLE
 
 ## See Updates and Relatives
-* [Uupdates](./Updates.md)
+* [Updates](./Updates.md)
 
 ## Functions
 

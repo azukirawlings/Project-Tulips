@@ -1,33 +1,33 @@
-# 阵图
+# Project Tulips
 
-本地战术沙盘。底图保持干净，自己画部队、箭头、区域和战线，数据留在浏览器里。
+Solving your "Tactical Issues" with the greatest convenience
 
-## 能做什么
+## Functions
 
-- 标点、画线、多边形、曲线、箭头、徒手、圆和量距
-- 陆海空分开记现有和满编，编制可以自己加
-- 查看和编辑两种模式
-- 把当前局面记成时间点，再拿来对照
-- 阵营、颜色、上下级可以改
-- 导出、导入 JSON，单位图片和说明会一起带走
+- Arbitrarily paint illustration with tactical signs
+- Detail modification of single military unit
+- Dual mode for viewing/editing
+- Robust capabilities for recording and visualizing the temporal evolution of the battle
+- 100% customized situation and stakeholder information
+- Free Import/Export system with .json file
 
-## 开发
+## Developments
 
-需要 Node.js 20 以上。
+Require Node.js 20+。
 
 ```bash
 npm install
 npm run dev
 ```
 
-地图瓦片用的是公开服务，不需要钥匙。
+Public service of the map applied without necessary api-keys
 
-## Windows 单文件
+## Windows Single Execution
 
-装好 Go 之后：
+After the installation of Go:
 
 ```bash
 npm run build
 cd desktop
-go build -ldflags="-s -w" -o 阵图.exe .
+go build -ldflags="-s -w" -o Project Tulips.exe .
 ```

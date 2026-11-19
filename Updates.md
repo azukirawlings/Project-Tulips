@@ -1,28 +1,27 @@
 # Changelog
 
-## 1.0.1 beta
+## 1.0.5 beta
 
-1. Each unit has two strength blocks: personnel on hand and authorized, and equipment on hand and authorized.
+1. Two people can work on the same sandbox. Both enter the same room code. No address is required. Closing the collaboration panel does not disconnect.
+2. On the same network, one side can still open a room and the other can join it with that computer's address.
+3. Only the map content is shared: units, graphics, factions, and the saved times. Each side keeps its own view. Changing the open time, the times being compared, the basemap, or edit/view mode does not change the other side.
+4. The first person in the room can allow or remove editing for each other person. A person without edit rights can look, but cannot change the map.
+5. With the select tool, drag a box around several graphics. Delete removes all of them.
+6. The window title is Project Tulip.
+7. The notes for view mode and for comparing times were rewritten so they describe what those controls do. The extra note in the collaboration panel was removed.
+8. Menus and the side panel open with a short animation. Buttons press in slightly.
 
-   Army: utility vehicles, trucks, APCs, IFVs, amphibious fighting vehicles, light tanks, MBTs, transport helicopters, attack helicopters.
+## 1.0.4 beta
 
-   Navy: small craft, armed patrol boats, gunboats, coastal defense vessels, frigates, destroyers, cruisers, carriers.
-
-   Air force: fighters, ground-attack and support aircraft, bombers, transports.
-
-   The left rail has an overview for both sides: personnel and equipment still on hand, and losses (authorized minus on hand, summed).
-
-2. Units can be placed in a command hierarchy. Level names are editable (for example field army, battlegroup or division, squad), and so is how deep the tree goes. The overview can be limited to one side and to any echelon, including a single battlegroup, and shows losses and strength on hand for that cut. Faction names and the number of factions are editable. The default pair is still Friendly and Enemy.
-
-## 1.0.2 beta
-
-1. Fixed the echelon editor in the overview. The text field was too short to read, and the up and down controls were too large and the same color as the panel, so they did not look like buttons.
-2. Faction color can be set from a swatch.
-3. Fixed text fields that would not accept an empty value, so the last character could not be deleted.
-4. Navy and air force units no longer show personnel categories. Those fields do not apply.
-5. The interface can use a solid color or an uploaded background image.
-6. Opening the roster on the right still closes Map or Sandbox if one of those is open. If the roster is already open, opening Map or Sandbox again draws that panel above the side roster.
-7. The overview lists losses by equipment type.
+1. Authorized personnel and equipment cannot be set below the figures on hand. That case was breaking the loss totals.
+2. If every personnel and equipment pair on a unit is 0/0, the caption under the marker is left blank. Navy markers no longer read “Ships 0/0”.
+3. Removed the “authorized − on hand” line under casualties.
+4. Higher echelons use a slightly larger marker than lower ones.
+5. Fixed controls that were styled as body text: “Save current as a new time”, “Background image”, and “Default”.
+6. Replacing the .exe keeps basic settings such as interface color and basemap. Older saves are read where the format allows. A save in which on-hand strength was higher than authorized strength is corrected to full strength: the two figures are set equal.
+7. Arrows no longer take a line style.
+8. In a time comparison, units that appear or drop out are marked.
+9. In view mode, the split between the graphics list and the unit panel can be dragged.
 
 ## 1.0.3 beta
 
@@ -40,14 +39,26 @@
 9. One sandbox can hold several times. With two or more times selected, each unit’s track is drawn as arrows in steps of the same hue, light to dark (a blue unit runs from pale blue to deep blue). A unit that did not move but changed strength or equipment gets an arrow marked with the figures. Defensive traces and boundaries keep their base color and use the same shade steps, with the time labeled on the line. Plans drawn under a given time are included in the comparison. They are not hidden.
 10. A save is the full state at the last write. Opening it matches what was on screen, including view mode if that was active.
 
-## 1.0.4 beta
+## 1.0.2 beta
 
-1. Authorized personnel and equipment cannot be set below the figures on hand. That case was breaking the loss totals.
-2. If every personnel and equipment pair on a unit is 0/0, the caption under the marker is left blank. Navy markers no longer read “Ships 0/0”.
-3. Removed the “authorized − on hand” line under casualties.
-4. Higher echelons use a slightly larger marker than lower ones.
-5. Fixed controls that were styled as body text: “Save current as a new time”, “Background image”, and “Default”.
-6. Replacing the .exe keeps basic settings such as interface color and basemap. Older saves are read where the format allows. A save in which on-hand strength was higher than authorized strength is corrected to full strength: the two figures are set equal.
-7. Arrows no longer take a line style.
-8. In a time comparison, units that appear or drop out are marked.
-9. In view mode, the split between the graphics list and the unit panel can be dragged.
+1. Fixed the echelon editor in the overview. The text field was too short to read, and the up and down controls were too large and the same color as the panel, so they did not look like buttons.
+2. Faction color can be set from a swatch.
+3. Fixed text fields that would not accept an empty value, so the last character could not be deleted.
+4. Navy and air force units no longer show personnel categories. Those fields do not apply.
+5. The interface can use a solid color or an uploaded background image.
+6. Opening the roster on the right still closes Map or Sandbox if one of those is open. If the roster is already open, opening Map or Sandbox again draws that panel above the side roster.
+7. The overview lists losses by equipment type.
+
+## 1.0.1 beta
+
+1. Each unit has two strength blocks: personnel on hand and authorized, and equipment on hand and authorized.
+
+   Army: utility vehicles, trucks, APCs, IFVs, amphibious fighting vehicles, light tanks, MBTs, transport helicopters, attack helicopters.
+
+   Navy: small craft, armed patrol boats, gunboats, coastal defense vessels, frigates, destroyers, cruisers, carriers.
+
+   Air force: fighters, ground-attack and support aircraft, bombers, transports.
+
+   The left rail has an overview for both sides: personnel and equipment still on hand, and losses (authorized minus on hand, summed).
+
+2. Units can be placed in a command hierarchy. Level names are editable (for example field army, battlegroup or division, squad), and so is how deep the tree goes. The overview can be limited to one side and to any echelon, including a single battlegroup, and shows losses and strength on hand for that cut. Faction names and the number of factions are editable. The default pair is still Friendly and Enemy.

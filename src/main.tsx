@@ -20,7 +20,7 @@ function Home() {
   ) : (
     <main className="boot">
       <p className="brand">
-        <strong>阵图</strong>
+        <strong>Project Tulip</strong>
         <span>战术沙盘</span>
       </p>
       <p>正在展开干净底图</p>

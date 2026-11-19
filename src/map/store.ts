@@ -15,6 +15,7 @@ import { isFaction, isTool, uid } from "./types";
 import { blankScenario, demoScenario } from "./seed";
 import { normalizeScenario } from "./io";
 import { centroidOf, translateFeature } from "./geo";
+import { collabWriteOk } from "@/lib/multiplayer/gate";
 
 type Hist = { scenarioId: string; features: Feature[] };
 
@@ -26,6 +27,7 @@ export type SandboxState = {
   scenarios: Scenario[];
   activeId: string;
   selectedId: string | null;
+  pickedIds: string[];
   tool: Tool;
   faction: Faction;
   unitType: UnitType;
@@ -36,7 +38,7 @@ export type SandboxState = {
   closedDraw: boolean;
   panelOpen: boolean;
   board: boolean;
-  menu: "map" | "file" | "help" | null;
+  menu: "map" | "file" | "help" | "collab" | null;
   appearance: Appearance;
   viewSplit: number;
   coach: boolean;
@@ -59,6 +61,7 @@ export type SandboxState = {
   setViewSplit: (value: number) => void;
   dismissCoach: () => void;
   select: (id: string | null) => void;
+  selectMany: (ids: string[]) => void;
   focusFeature: (id: string) => void;
   setView: (center: LngLat, zoom: number) => void;
   patchScenario: (partial: Partial<Scenario>) => void;
@@ -66,6 +69,7 @@ export type SandboxState = {
   addFeature: (feature: Feature) => void;
   patchFeature: (id: string, partial: object, coalesceKey?: string) => void;
   deleteFeature: (id: string) => void;
+  deleteFeatures: (ids: string[]) => void;
   duplicateFeature: (id: string) => void;
   nudgeSelected: (dLng: number, dLat: number) => void;
   rotateSelected: (delta: number) => void;
@@ -195,9 +199,10 @@ export const useSandbox = create<SandboxState>()(
   persist(
     (set, get) => ({
       ...initial(),
+      pickedIds: [],
       setTool: (tool) => {
         const scenario = currentOf(get());
-        if (scenario.mode === "view" && tool !== "select") return;
+        if ((scenario.mode === "view" || !collabWriteOk()) && tool !== "select") return;
         set({ tool, menu: null });
       },
       setFaction: (faction) => set({ faction }),
@@ -222,8 +227,18 @@ export const useSandbox = create<SandboxState>()(
         const viewing = currentOf(state).mode === "view" && Boolean(selectedId);
         set({
           selectedId,
+          pickedIds: selectedId ? [selectedId] : [],
           panelOpen: viewing ? true : state.panelOpen,
           board: viewing ? false : state.board,
+        });
+      },
+      selectMany: (ids) => {
+        const pickedIds = [...new Set(ids)];
+        set({
+          pickedIds,
+          selectedId: pickedIds[0] ?? null,
+          panelOpen: pickedIds.length === 1,
+          board: pickedIds.length === 1 ? false : get().board,
         });
       },
       focusFeature: (id) => {
@@ -234,6 +249,7 @@ export const useSandbox = create<SandboxState>()(
         const at = centroidOf(feature);
         set({
           selectedId: id,
+          pickedIds: [id],
           panelOpen: true,
           board: false,
           focus: { lng: at[0], lat: at[1], nonce: (state.focus?.nonce ?? 0) + 1 },
@@ -254,7 +270,17 @@ export const useSandbox = create<SandboxState>()(
       patchScenario: (partial) => {
         const state = get();
         const scenario = currentOf(state);
-        set({ scenarios: replace(state, { ...scenario, ...partial, updatedAt: Date.now() }) });
+        const viewOnly = Object.keys(partial).every((key) =>
+          ["basemap", "mode", "showLabels", "showGrid", "showRelief", "showLinks", "groups", "center", "zoom", "activeMomentId", "compareIds"].includes(key),
+        );
+        if (!viewOnly && !collabWriteOk()) return;
+        set({
+          scenarios: replace(state, {
+            ...scenario,
+            ...partial,
+            ...(viewOnly ? {} : { updatedAt: Date.now() }),
+          }),
+        });
       },
       toggleGroup: (key) => {
         const state = get();
@@ -267,6 +293,7 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       addFeature: (feature) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
         set({
@@ -282,6 +309,7 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       patchFeature: (id, partial, coalesceKey) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
         const now = Date.now();
@@ -300,20 +328,26 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       deleteFeature: (id) => {
+        get().deleteFeatures([id]);
+      },
+      deleteFeatures: (ids) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
-        if (!scenario.features.some((feature) => feature.id === id)) return;
+        const drop = new Set(ids);
+        if (!scenario.features.some((feature) => drop.has(feature.id))) return;
         set({
           scenarios: replace(state, {
             ...scenario,
             features: scenario.features
-              .filter((feature) => feature.id !== id)
+              .filter((feature) => !drop.has(feature.id))
               .map((feature) =>
-                feature.kind === "unit" && feature.parentId === id ? { ...feature, parentId: null } : feature,
+                feature.kind === "unit" && feature.parentId && drop.has(feature.parentId) ? { ...feature, parentId: null } : feature,
               ),
             updatedAt: Date.now(),
           }),
-          selectedId: state.selectedId === id ? null : state.selectedId,
+          selectedId: null,
+          pickedIds: [],
           past: [...state.past, { scenarioId: scenario.id, features: scenario.features }].slice(-80),
           future: [],
           coalesce: null,
@@ -352,6 +386,7 @@ export const useSandbox = create<SandboxState>()(
         get().patchFeature(feature.id, { heading }, `heading:${feature.id}`);
       },
       undo: () => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
         let index = -1;
@@ -375,6 +410,7 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       redo: () => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
         let index = -1;
@@ -424,10 +460,11 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       renameScenario: (name) => {
+        if (!collabWriteOk()) return;
         const clean = name.slice(0, 40);
         const state = get();
         const scenario = currentOf(state);
-        set({ scenarios: replace(state, { ...scenario, name: clean }) });
+        set({ scenarios: replace(state, { ...scenario, name: clean, updatedAt: Date.now() }) });
       },
       deleteScenario: (id) => {
         const state = get();
@@ -504,6 +541,7 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       addMoment: (name) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = stamp(currentOf(state));
         if (scenario.moments.length >= 24) return;
@@ -522,16 +560,19 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       renameMoment: (id, name) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
         set({
           scenarios: replace(state, {
             ...scenario,
             moments: scenario.moments.map((moment) => (moment.id === id ? { ...moment, name: name.slice(0, 24) } : moment)),
+            updatedAt: Date.now(),
           }),
         });
       },
       deleteMoment: (id) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = stamp(currentOf(state));
         if (scenario.moments.length <= 1) return;
@@ -561,7 +602,6 @@ export const useSandbox = create<SandboxState>()(
             ...scenario,
             activeMomentId: id,
             features: structuredClone(next.features),
-            updatedAt: Date.now(),
           }),
           past: [],
           future: [],
@@ -642,6 +682,7 @@ export const useSandbox = create<SandboxState>()(
           future: [],
           coalesce: null,
           focus: null,
+          pickedIds: [],
         };
       },
     },

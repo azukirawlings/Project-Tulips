@@ -12,6 +12,8 @@
   "dependencies": {
     "leaflet": "^1.9.4",
     "lucide-react": "^0.510.0",
+    "mqtt": "^5.16.1",
+    "peerjs": "^1.5.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.0"

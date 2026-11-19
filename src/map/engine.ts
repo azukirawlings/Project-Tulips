@@ -101,6 +101,10 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     doubleClickZoom: true,
   });
   map.attributionControl.setPrefix(false);
+  const isOn = (id: string) => {
+    const state = useSandbox.getState();
+    return state.selectedId === id || state.pickedIds.includes(id);
+  };
   const labelPane = map.createPane("labels");
   labelPane.style.zIndex = "380";
   labelPane.style.pointerEvents = "none";
@@ -183,7 +187,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   };
 
   const paint = (entry: Entry, feature: Feature) => {
-    const selected = useSandbox.getState().selectedId === feature.id;
+    const selected = isOn(feature.id);
     const style = styleFor(feature, selected);
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
       const meta = markerMeta(feature);
@@ -284,7 +288,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   };
 
   const createEntry = (feature: Feature): Entry => {
-    const selected = useSandbox.getState().selectedId === feature.id;
+    const selected = isOn(feature.id);
     const style = styleFor(feature, selected);
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
       const meta = markerMeta(feature);
@@ -410,7 +414,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       if (feature.hidden || !scenario.groups[groupOf(feature)]) continue;
       visible.add(feature.id);
       const geom = geomKey(feature);
-      const style = styleKey(feature, state.selectedId === feature.id);
+      const style = styleKey(feature, isOn(feature.id));
       let entry = entries.get(feature.id);
       if (!entry) {
         entry = createEntry(feature);
@@ -780,6 +784,40 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     finishPath();
   });
   map.on("mousedown", (event: MapEvent) => {
+    const oe = event.originalEvent;
+    if (oe.button !== 0) return;
+    const state = useSandbox.getState();
+    if (state.tool !== "select" || activeScenario(state).mode === "view") return;
+    const target = oe.target as HTMLElement | null;
+    if (target?.closest(".leaflet-marker-icon, .leaflet-interactive")) return;
+    const origin = event.latlng;
+    const originPx = map.latLngToContainerPoint(origin);
+    let box: { setBounds: (bounds: ReturnType<LeafletNS["latLngBounds"]>) => void; remove: () => void; getBounds: () => { contains: (ll: [number, number]) => boolean } } | null = null;
+    map.dragging.disable();
+    const move = (ev: MapEvent) => {
+      const px = map.latLngToContainerPoint(ev.latlng);
+      if (!box && Math.hypot(px.x - originPx.x, px.y - originPx.y) < 6) return;
+      const bounds = L.latLngBounds(origin, ev.latlng);
+      if (!box) box = L.rectangle(bounds, { color: "#d5dbe3", weight: 1, fillOpacity: 0.12, dashArray: "4 3", interactive: false }).addTo(map);
+      else box.setBounds(bounds);
+    };
+    const up = () => {
+      map.off("mousemove", move);
+      map.off("mouseup", up);
+      map.dragging.enable();
+      if (!box) return;
+      swallow = true;
+      const bounds = box.getBounds();
+      box.remove();
+      const ids = activeScenario(useSandbox.getState())
+        .features.filter((feature) => bounds.contains(toLL(centroidOf(feature))))
+        .map((feature) => feature.id);
+      useSandbox.getState().selectMany(ids);
+    };
+    map.on("mousemove", move);
+    map.on("mouseup", up);
+  });
+  map.on("mousedown", (event: MapEvent) => {
     if (useSandbox.getState().tool !== "freehand" || event.originalEvent.button > 0) return;
     map.dragging.disable();
     draft = [fromLL(event.latlng)];
@@ -1139,9 +1177,9 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       finishPath();
       return;
     }
-    if ((event.key === "Delete" || event.key === "Backspace") && state.selectedId) {
+    if ((event.key === "Delete" || event.key === "Backspace") && (state.pickedIds.length || state.selectedId)) {
       event.preventDefault();
-      state.deleteFeature(state.selectedId);
+      state.deleteFeatures(state.pickedIds.length ? state.pickedIds : [state.selectedId!]);
       return;
     }
     if (event.key === "[" || event.key === "]") {

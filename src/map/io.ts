@@ -313,7 +313,7 @@ function momentsOf(raw: unknown, fallback: Feature[]): { moments: Moment[] } {
 export function parseScenarioFile(text: string): Scenario {
   const data = JSON.parse(text) as { scenario?: unknown };
   const scenario = normalizeScenario(data?.scenario ?? data);
-  if (!scenario) throw new Error("不是阵图沙盘文件");
+  if (!scenario) throw new Error("不是 Project Tulip 沙盘文件");
   return { ...scenario, id: uid("sc"), updatedAt: Date.now() };
 }
 
@@ -324,7 +324,7 @@ export function downloadScenario(scenario: Scenario): void {
   );
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `阵图-${scenario.name || "沙盘"}.json`;
+  link.download = `Project Tulip-${scenario.name || "沙盘"}.json`;
   link.click();
   URL.revokeObjectURL(link.href);
 }

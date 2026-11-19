@@ -25,6 +25,7 @@ import { formatPair } from "@/map/geo";
 import { getHud, getHudServer, mapApi, subscribeHud } from "@/map/hud";
 import { downloadScenario, parseScenarioFile } from "@/map/io";
 import { activeScenario, canRedo, canUndo, useSandbox } from "@/map/store";
+import { CollabMenu, useCollabSession } from "./Collab";
 import type { Tool } from "@/map/types";
 import { BASEMAPS, FORT_TYPES, SERVICES, TOOLS, UNIT_TYPES, factionColor } from "@/map/types";
 
@@ -54,11 +55,12 @@ export function TopBar() {
   const setPanel = useSandbox((state) => state.setPanel);
   const board = useSandbox((state) => state.board);
   const setBoard = useSandbox((state) => state.setBoard);
+  const collab = useCollabSession();
 
   return (
     <header className="topbar">
       <div className="brand">
-        <strong>阵图</strong>
+        <strong>Project Tulip</strong>
         <span>战术沙盘</span>
       </div>
       <input
@@ -99,6 +101,18 @@ export function TopBar() {
             沙盘
           </button>
           {menu === "file" ? <FileMenu /> : null}
+        </div>
+        <div className="pop" data-menu-root>
+          <button
+            type="button"
+            className={menu === "collab" || collab.status !== "idle" ? "text-btn on" : "text-btn"}
+            aria-expanded={menu === "collab"}
+            onClick={() => setMenu(menu === "collab" ? null : "collab")}
+          >
+            <Users size={16} />
+            协作
+          </button>
+          {menu === "collab" ? <CollabMenu /> : null}
         </div>
         <button
           type="button"
@@ -262,7 +276,7 @@ function ModeSwitch() {
           阅览
         </button>
       </div>
-      <p className="hint">阅览时点标绘，右侧只显示图片、简介和兵力。没有图片就不显示。</p>
+      <p className="hint">阅览时不能改图。点一个标绘，右边只留图片、简介和兵力；没放图片就不显示图片。</p>
     </div>
   );
 }
@@ -278,7 +292,7 @@ function TimeBook() {
   return (
     <div className="stack">
       <span>时间</span>
-      <p className="hint">记下几个时间后，勾选两个以上。单位移动会画成由浅到深的箭头；原地只有人数或装备变化时，用箭头标出数字。比较时，这些时间点里的计划箭头和界线也会一起出现。</p>
+      <p className="hint">勾选两个以上，这些时间会叠在一张图上。部队换了位置就画出移动；人数或装备变了，在原地标出差额。</p>
       <ul className="time-list">
         {scenario.moments.map((moment) => (
           <li key={moment.id}>
@@ -314,7 +328,7 @@ function TimeBook() {
       <button type="button" className="text-btn wide" onClick={() => addMoment(`时间 ${scenario.moments.length + 1}`)}>
         记下当前为新时间
       </button>
-      {comparing ? <p className="warn">正在比较。各时间点中的计划箭头、防线和界线都会显示，不只是已经发生的移动。</p> : null}
+      {comparing ? <p className="warn">正在把勾选的时间叠在一起看。</p> : null}
     </div>
   );
 }

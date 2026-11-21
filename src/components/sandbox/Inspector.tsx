@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Copy, Eye, EyeOff, Trash2 } from "lucide-react";
+import { Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { compressImage } from "./Chrome";
 import { formatDistance, pathLength } from "@/map/geo";
 import { activeScenario, useSandbox } from "@/map/store";
@@ -14,6 +14,7 @@ import {
   UNIT_TYPES,
   factionColor,
   factionTone,
+  groupOf,
   labelOf,
 } from "@/map/types";
 import { parentChoices, unitStock, unitsOf, fitPair } from "@/map/order";
@@ -32,14 +33,10 @@ export function Inspector() {
   const board = useSandbox((state) => state.board);
   const scenario = useSandbox(activeScenario);
   const selectedId = useSandbox((state) => state.selectedId);
-  const feature = scenario.features.find((item) => item.id === selectedId) ?? null;
   const toggleGroup = useSandbox((state) => state.toggleGroup);
   const focusFeature = useSandbox((state) => state.focusFeature);
   const patchFeature = useSandbox((state) => state.patchFeature);
   const deleteFeature = useSandbox((state) => state.deleteFeature);
-  const duplicateFeature = useSandbox((state) => state.duplicateFeature);
-  const viewSplit = useSandbox((state) => state.viewSplit);
-  const setViewSplit = useSandbox((state) => state.setViewSplit);
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
     const text = query.trim();
@@ -58,31 +55,7 @@ export function Inspector() {
   if (scenario.mode === "view") {
     return (
       <aside className="panel viewing">
-        <div className="view-top" style={{ flexBasis: `${Math.round(viewSplit * 100)}%` }}>
-          {feature ? <Dossier feature={feature} scenario={scenario} /> : <p className="empty">点地图上的标绘，查看图片、简介和兵力。</p>}
-        </div>
-        <div
-          className="splitter"
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="调整单位信息和名单的高度"
-          onPointerDown={(event) => {
-            const panel = event.currentTarget.parentElement;
-            if (!panel) return;
-            const move = (pointer: PointerEvent) => {
-              const rect = panel.getBoundingClientRect();
-              if (rect.height < 1) return;
-              setViewSplit((pointer.clientY - rect.top) / rect.height);
-            };
-            const stop = () => {
-              window.removeEventListener("pointermove", move);
-              window.removeEventListener("pointerup", stop);
-            };
-            window.addEventListener("pointermove", move);
-            window.addEventListener("pointerup", stop);
-          }}
-        />
-        <FeatureList shown={shown} selectedId={selectedId} scenario={scenario} onFocus={focusFeature} />
+        <FeatureList shown={shown} selectedId={selectedId} scenario={scenario} onFocus={focusFeature} onPatch={patchFeature} onDelete={deleteFeature} editable={false} />
       </aside>
     );
   }
@@ -100,7 +73,6 @@ export function Inspector() {
           </button>
         ))}
       </div>
-      {feature ? <Properties feature={feature} onPatch={patchFeature} onDelete={deleteFeature} onCopy={duplicateFeature} /> : null}
       <div className="list-head">
         <input
           className="field"
@@ -110,36 +82,7 @@ export function Inspector() {
           aria-label="筛选标绘"
         />
       </div>
-      <ul className="feat-list">
-        {shown.length === 0 ? <li className="empty">这一层还是空的。从左侧选一个工具，直接画在地图上。</li> : null}
-        {shown.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className={item.id === selectedId ? "row on" : "row"}
-              data-side={factionTone(scenario.factions, item.faction)}
-              style={{ boxShadow: `inset 2px 0 0 ${factionColor(scenario.factions, item.faction)}` }}
-              onClick={() => focusFeature(item.id)}
-            >
-              <span>
-                <b>{item.name || "未命名"}</b>
-                <small>{kindLabel(item, scenario)}</small>
-              </span>
-            </button>
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label={item.hidden ? "显示" : "隐藏"}
-              onClick={() => patchFeature(item.id, { hidden: !item.hidden })}
-            >
-              {item.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-            <button type="button" className="icon-btn" aria-label="删除" onClick={() => deleteFeature(item.id)}>
-              <Trash2 size={16} />
-            </button>
-          </li>
-        ))}
-      </ul>
+      <FeatureList shown={shown} selectedId={selectedId} scenario={scenario} onFocus={focusFeature} onPatch={patchFeature} onDelete={deleteFeature} editable />
       <details className="help">
         <summary>快捷键</summary>
         <p>V 选择 · U 部队 · F 工事 · T 地名</p>
@@ -147,6 +90,7 @@ export function Inspector() {
         <p>Enter 完成 · Esc 取消 · Delete 删除</p>
         <p>Ctrl+Z 撤销 · Ctrl+Shift+Z 重做</p>
         <p>[ ] 旋转朝向 · 方向键微移 · Alt+点击顶点可删点</p>
+        <p>选择工具下，右键拖动地图</p>
       </details>
     </aside>
   );
@@ -674,35 +618,106 @@ function Dossier({ feature, scenario }: { feature: Feature; scenario: Scenario }
   );
 }
 
+export function FeatureCard() {
+  const scenario = useSandbox(activeScenario);
+  const selectedId = useSandbox((state) => state.selectedId);
+  const board = useSandbox((state) => state.board);
+  const select = useSandbox((state) => state.select);
+  const patchFeature = useSandbox((state) => state.patchFeature);
+  const deleteFeature = useSandbox((state) => state.deleteFeature);
+  const duplicateFeature = useSandbox((state) => state.duplicateFeature);
+  const feature = scenario.features.find((item) => item.id === selectedId) ?? null;
+  if (!feature || board) return null;
+  return (
+    <aside className="info-card" aria-label="标绘详情">
+      <header>
+        <span>{kindLabel(feature, scenario)}</span>
+        <button type="button" className="icon-btn" aria-label="关闭" onClick={() => select(null)}>
+          <X size={16} />
+        </button>
+      </header>
+      {scenario.mode === "view" ? (
+        <Dossier feature={feature} scenario={scenario} />
+      ) : (
+        <Properties feature={feature} onPatch={patchFeature} onDelete={deleteFeature} onCopy={duplicateFeature} />
+      )}
+    </aside>
+  );
+}
+
 function FeatureList({
   shown,
   selectedId,
   scenario,
   onFocus,
+  onPatch,
+  onDelete,
+  editable,
 }: {
   shown: Feature[];
   selectedId: string | null;
   scenario: Scenario;
   onFocus: (id: string) => void;
+  onPatch: (id: string, partial: object) => void;
+  onDelete: (id: string) => void;
+  editable: boolean;
 }) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const groups = GROUPS.map((group) => ({ ...group, items: shown.filter((item) => groupOf(item) === group.id) })).filter((group) => group.items.length);
+  if (!groups.length) return <p className="empty">还没有标绘。从左侧选一个工具，直接画在地图上。</p>;
   return (
-    <ul className="feat-list">
-      {shown.length === 0 ? <li className="empty">这一层还是空的。</li> : null}
-      {shown.map((item) => (
-        <li key={item.id}>
-          <button
-            type="button"
-            className={item.id === selectedId ? "row on" : "row"}
-            style={{ boxShadow: `inset 2px 0 0 ${factionColor(scenario.factions, item.faction)}` }}
-            onClick={() => onFocus(item.id)}
-          >
-            <span>
-              <b>{item.name || "未命名"}</b>
-              <small>{kindLabel(item, scenario)}</small>
-            </span>
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div className="feat-groups">
+      {groups.map((group) => {
+        const expanded = open[group.id] ?? group.items.some((item) => item.id === selectedId);
+        return (
+          <section key={group.id}>
+            <button
+              type="button"
+              className="group-toggle"
+              aria-expanded={expanded}
+              onClick={() => setOpen((current) => ({ ...current, [group.id]: !expanded }))}
+            >
+              <b>{group.label}</b>
+              <small>{group.items.length}</small>
+            </button>
+            {expanded ? (
+              <ul className="feat-list">
+                {group.items.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className={item.id === selectedId ? "row on" : "row"}
+                      data-side={factionTone(scenario.factions, item.faction)}
+                      style={{ boxShadow: `inset 2px 0 0 ${factionColor(scenario.factions, item.faction)}` }}
+                      onClick={() => onFocus(item.id)}
+                    >
+                      <span>
+                        <b>{item.name || "未命名"}</b>
+                        <small>{kindLabel(item, scenario)}</small>
+                      </span>
+                    </button>
+                    {editable ? (
+                      <>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={item.hidden ? "显示" : "隐藏"}
+                          onClick={() => onPatch(item.id, { hidden: !item.hidden })}
+                        >
+                          {item.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                        <button type="button" className="icon-btn" aria-label="删除" onClick={() => onDelete(item.id)}>
+                          <Trash2 size={16} />
+                        </button>
+                      </>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
   );
 }

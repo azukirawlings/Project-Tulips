@@ -1174,8 +1174,29 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   });
   map.on("contextmenu", (event: MapEvent) => {
     event.originalEvent.preventDefault();
+    if (useSandbox.getState().tool === "select") return;
     finishPath();
   });
+  const onRightPan = (oe: MouseEvent) => {
+    if (oe.button !== 2 || useSandbox.getState().tool !== "select") return;
+    oe.preventDefault();
+    oe.stopPropagation();
+    let last = map.mouseEventToContainerPoint(oe);
+    map.dragging.disable();
+    const move = (ev: MouseEvent) => {
+      const now = map.mouseEventToContainerPoint(ev);
+      map.panBy([last.x - now.x, last.y - now.y], { animate: false });
+      last = now;
+    };
+    const up = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      map.dragging.enable();
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+  map.getContainer().addEventListener("mousedown", onRightPan, true);
   map.on("mousedown", (event: MapEvent) => {
     const oe = event.originalEvent;
     if (oe.button !== 0) return;
@@ -1683,6 +1704,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   return () => {
     unsub();
     window.clearTimeout(viewTimer);
+    map.getContainer().removeEventListener("mousedown", onRightPan, true);
     window.removeEventListener("keydown", onKey);
     observer.disconnect();
     bindMap(null);

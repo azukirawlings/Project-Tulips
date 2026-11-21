@@ -35,6 +35,14 @@ go build -ldflags="-s -w" -o Project Tulips.exe .
 
 # Changelog
 
+## 1.0.8 beta
+
+1. In the select tool, drag with the right button to move the map. The left button still draws a selection box.
+2. The graphics list is grouped. Each group can be opened or closed.
+3. Details for the selected graphic open in a card on the map. The card can be closed. Edit mode changes the graphic there. View mode shows the stored description and strength.
+4. The overview is a tree of factions and the units under them. Open a unit to see strength on hand, authorized strength, and losses. Click a faction to include it in the total, and click it again to remove it. Units can be combined only when they belong to the same faction. A unit from another faction replaces the previous choice.
+5. Unit icons are rectangular and slightly larger than fortification icons.
+
 ## 1.0.7 beta
 
 1. Panning and zooming no longer rebuild the sandbox on every step. The view is written back after the gesture settles.

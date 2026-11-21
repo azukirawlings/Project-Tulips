@@ -1,6 +1,6 @@
 import { useEffect, type CSSProperties } from "react";
 import { MapChrome, StatusBar, ToolRail, TopBar } from "./Chrome";
-import { Inspector } from "./Inspector";
+import { Inspector, FeatureCard } from "./Inspector";
 import { MapView } from "@/map/MapView";
 import { useSandbox } from "@/map/store";
 import { luminance, mixHex } from "@/map/types";
@@ -44,6 +44,7 @@ export function Sandbox() {
       <div className="mapcell">
         <MapView />
         <MapChrome />
+        <FeatureCard />
       </div>
       <Inspector />
       <StatusBar />

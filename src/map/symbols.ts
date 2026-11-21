@@ -49,8 +49,12 @@ const FORT_ICONS: Record<FortType, string> = {
   special: `<circle class="frame" cx="18" cy="18" r="11"/><path d="M18 10.5 V25.5 M10.5 18 H25.5"/>`,
 };
 
-function glyph(inner: string, heading: number, size: number, plate: string, ink: string): string {
-  return `<svg class="glyph" viewBox="0 0 36 36" style="width:${size}px;height:${size}px;transform:rotate(${heading}deg);color:${ink}" aria-hidden="true"><circle class="plate" cx="18" cy="18" r="15.2" fill="${plate}" stroke="none"/><polygon class="nose" points="18,0.8 21,4.6 15,4.6"/>${inner}</svg>`;
+function glyph(inner: string, heading: number, size: number, plate: string, ink: string, shape: "unit" | "fort"): string {
+  const back =
+    shape === "unit"
+      ? `<rect class="plate" x="2.4" y="5.4" width="31.2" height="24.2" rx="2" fill="${plate}" stroke="none"/>`
+      : `<circle class="plate" cx="18" cy="18" r="12.4" fill="${plate}" stroke="none"/>`;
+  return `<svg class="glyph" viewBox="0 0 36 36" style="width:${size}px;height:${size}px;transform:rotate(${heading}deg);color:${ink}" aria-hidden="true">${back}<polygon class="nose" points="18,0.8 21,4.6 15,4.6"/>${inner}</svg>`;
 }
 
 export function pointMarker(
@@ -77,12 +81,12 @@ export function pointMarker(
     };
   }
   if (feature.kind === "fort") {
-    const size = Math.round(36 * scale);
+    const size = Math.round(32 * scale);
     const plate = colors?.plate ?? "#14171c";
     const ink = colors?.ink ?? "currentColor";
     return {
       className: `mk fort side-${tone}${selectedClass}`,
-      html: `${glyph(FORT_ICONS[feature.fortType], feature.heading, size, plate, ink)}<span class="cap" style="top:${size + 4}px">${esc(feature.name)}</span>`,
+      html: `${glyph(FORT_ICONS[feature.fortType], feature.heading, size, plate, ink, "fort")}<span class="cap" style="top:${size + 4}px">${esc(feature.name)}</span>`,
       size: [size, size],
       anchor: [Math.round(size / 2), Math.round(size / 2)],
     };
@@ -98,7 +102,7 @@ export function pointMarker(
       : feature.service === "air" && feature.unitType === "missile"
         ? UNIT_ICONS.missile
         : SERVICE_MARK[feature.service];
-  const size = Math.round(36 * scale);
+  const size = Math.round(44 * scale);
   const plate = colors?.plate ?? "#14171c";
   const ink = colors?.ink ?? "currentColor";
   return {
@@ -109,6 +113,7 @@ export function pointMarker(
       size,
       plate,
       ink,
+      "unit",
     )}<span class="hp" style="top:${size}px"><i style="width:${Math.max(0, Math.min(100, ratio * 100))}%"></i></span><span class="cap" style="top:${size + 6}px"><b>${esc(feature.name)}</b>${call}${figure}</span>`,
     size: [size, size],
     anchor: [Math.round(size / 2), Math.round(size / 2)],

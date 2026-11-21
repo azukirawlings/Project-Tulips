@@ -155,7 +155,7 @@ export type Scenario = {
 };
 
 export const TOOLS: { id: Tool; label: string; hint: string; key: string }[] = [
-  { id: "select", label: "选择", key: "V", hint: "点一下选中。按住拖出方框可以多选，Delete 删除，Ctrl+C 复制。" },
+  { id: "select", label: "选择", key: "V", hint: "点一下选中。左键拖出方框多选，右键拖动地图。Delete 删除，Ctrl+C 复制。" },
   { id: "unit", label: "部队", key: "U", hint: "点击地图放置部队。可连续放置。" },
   { id: "fort", label: "工事", key: "F", hint: "点击放置要塞、地堡、哨所等虚构工事。" },
   { id: "label", label: "地名", key: "T", hint: "点击放置自定义地名，底图本身不带景点。" },

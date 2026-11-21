@@ -242,7 +242,15 @@ export function centroidOf(feature: Feature): LngLat {
 
 export function translateFeature(feature: Feature, dLng: number, dLat: number): Feature {
   if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
-    return { ...feature, at: [feature.at[0] + dLng, feature.at[1] + dLat] };
+    const at: LngLat = [feature.at[0] + dLng, feature.at[1] + dLat];
+    if (feature.kind === "fort" && feature.reach) {
+      return {
+        ...feature,
+        at,
+        reach: feature.reach.map((point) => [point[0] + dLng, point[1] + dLat]),
+      };
+    }
+    return { ...feature, at };
   }
   if (feature.kind === "circle") {
     return { ...feature, center: [feature.center[0] + dLng, feature.center[1] + dLat] };

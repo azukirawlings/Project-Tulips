@@ -27,7 +27,10 @@ export type UnitType =
   | "engineer"
   | "logistics"
   | "hq"
-  | "special";
+  | "special"
+  | "spg"
+  | "mlrs"
+  | "missile";
 export type GearId =
   | "vehicle"
   | "truck"
@@ -58,7 +61,8 @@ export type FortType =
   | "airfield"
   | "bridge"
   | "depot"
-  | "obstacle";
+  | "obstacle"
+  | "special";
 export type Dash = "solid" | "dash" | "dot" | "cross" | "defense";
 export type BasemapId = "dark" | "light" | "relief" | "sat";
 export type Tone = "dark" | "light";
@@ -84,6 +88,7 @@ export type UnitFeature = Base & {
   personnel: CountPair;
   equipment: Partial<Record<GearId, CountPair>>;
   callsign: string;
+  rangeM?: number;
 };
 
 export type FortFeature = Base & {
@@ -91,6 +96,8 @@ export type FortFeature = Base & {
   at: LngLat;
   fortType: FortType;
   heading: number;
+  rangeM?: number;
+  reach?: LngLat[];
 };
 
 export type LabelFeature = Base & {
@@ -119,7 +126,7 @@ export type CircleFeature = Base & {
 
 export type Feature = UnitFeature | FortFeature | LabelFeature | PathFeature | CircleFeature;
 
-export type FactionDef = { id: string; name: string; tone: FactionTone; color?: string };
+export type FactionDef = { id: string; name: string; tone: FactionTone; color?: string; plate?: string; ink?: string };
 export type LevelDef = { id: string; name: string };
 export type Moment = { id: string; name: string; features: Feature[] };
 
@@ -134,6 +141,7 @@ export type Scenario = {
   showGrid: boolean;
   showRelief: boolean;
   showLinks: boolean;
+  iconSize: "s" | "m" | "l";
   mode: "edit" | "view";
   groups: Record<GroupKey, boolean>;
   factions: FactionDef[];
@@ -146,7 +154,7 @@ export type Scenario = {
 };
 
 export const TOOLS: { id: Tool; label: string; hint: string; key: string }[] = [
-  { id: "select", label: "选择", key: "V", hint: "点一下选中。按住拖出方框可以多选，Delete 一起删。Ctrl+Z 撤销。" },
+  { id: "select", label: "选择", key: "V", hint: "点一下选中。按住拖出方框可以多选，Delete 删除，Ctrl+C 复制。" },
   { id: "unit", label: "部队", key: "U", hint: "点击地图放置部队。可连续放置。" },
   { id: "fort", label: "工事", key: "F", hint: "点击放置要塞、地堡、哨所等虚构工事。" },
   { id: "label", label: "地名", key: "T", hint: "点击放置自定义地名，底图本身不带景点。" },
@@ -272,11 +280,29 @@ export function defaultHeadcount(levelId: string): number {
   return table[levelId] ?? 100;
 }
 
-export const UNIT_TYPES: { id: UnitType; label: string }[] = [
+export function iconScale(size: Scenario["iconSize"] | undefined): number {
+  if (size === "s") return 0.72;
+  if (size === "l") return 1.35;
+  return 1;
+}
+
+export function iconColors(color: string, basemap: BasemapId): { plate: string; ink: string } {
+  if (basemap === "sat" || basemap === "relief") {
+    return { plate: mixHex(color, "#14171c", 0.72), ink: mixHex(color, "#f5f7fa", 0.62) };
+  }
+  if (basemap === "dark") {
+    return { plate: mixHex(color, "#0c0e0d", 0.5), ink: mixHex(color, "#f7f8f6", 0.28) };
+  }
+  return { plate: mixHex(color, "#f7f8f6", 0.8), ink: mixHex(color, "#16181c", 0.35) };
+}
+
+export const LAND_UNITS: { id: UnitType; label: string }[] = [
   { id: "infantry", label: "步兵" },
   { id: "armor", label: "装甲" },
   { id: "mech", label: "机械化" },
   { id: "artillery", label: "炮兵" },
+  { id: "spg", label: "自走火炮" },
+  { id: "mlrs", label: "自走火箭炮" },
   { id: "recon", label: "侦察" },
   { id: "air", label: "航空" },
   { id: "airDefense", label: "防空" },
@@ -285,6 +311,13 @@ export const UNIT_TYPES: { id: UnitType; label: string }[] = [
   { id: "hq", label: "指挥" },
   { id: "special", label: "特战" },
 ];
+
+export const AIR_UNITS: { id: UnitType; label: string }[] = [
+  { id: "air", label: "飞机" },
+  { id: "missile", label: "导弹" },
+];
+
+export const UNIT_TYPES: { id: UnitType; label: string }[] = [...LAND_UNITS, { id: "missile", label: "导弹" }];
 
 export const FORT_TYPES: { id: FortType; label: string }[] = [
   { id: "fortress", label: "要塞" },
@@ -295,6 +328,7 @@ export const FORT_TYPES: { id: FortType; label: string }[] = [
   { id: "bridge", label: "桥梁" },
   { id: "depot", label: "仓库" },
   { id: "obstacle", label: "障碍" },
+  { id: "special", label: "特殊工事" },
 ];
 
 export const BASEMAPS: {

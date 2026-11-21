@@ -155,6 +155,7 @@ function keepView(local: Scenario, remote: Scenario): Scenario {
     showGrid: local.showGrid,
     showRelief: local.showRelief,
     showLinks: local.showLinks,
+    iconSize: local.iconSize,
     groups: local.groups,
     center: local.center,
     zoom: local.zoom,

@@ -15,6 +15,7 @@ export function demoScenario(): Scenario {
     showGrid: false,
     showRelief: false,
     showLinks: false,
+    iconSize: "m",
     mode: "edit",
     groups: defaultGroups(),
     factions: [
@@ -275,6 +276,7 @@ export function blankScenario(name: string, from?: Scenario): Scenario {
     showGrid: false,
     showRelief: false,
     showLinks: false,
+    iconSize: from?.iconSize ?? "m",
     mode: from?.mode ?? "edit",
     groups: defaultGroups(),
     factions: DEFAULT_FACTIONS.map((faction) => ({ ...faction })),

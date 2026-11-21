@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { activeScenario, useSandbox } from "@/map/store";
 import type { FactionDef, FactionTone, Feature, LevelDef, ServiceId, UnitFeature } from "@/map/types";
-import { FACTION_PALETTE, SERVICES, factionColor, uid } from "@/map/types";
+import { FACTION_PALETTE, SERVICES, factionColor, iconColors, uid } from "@/map/types";
 import { descendantIds, levelRank, tally, unitStock, unitsOf } from "@/map/order";
 
 const TONES: FactionTone[] = ["friend", "foe", "neutral", "unknown"];
@@ -224,6 +224,26 @@ function OrgEditor({
                 value={factionColor([faction], faction.id)}
                 onChange={(event) =>
                   onFaction(factions.map((item) => (item.id === faction.id ? { ...item, color: event.target.value } : item)))
+                }
+              />
+              <input
+                className="color-input"
+                type="color"
+                title="底板"
+                aria-label={`${faction.name || "阵营"}底板`}
+                value={faction.plate || iconColors(factionColor([faction], faction.id), "sat").plate}
+                onChange={(event) =>
+                  onFaction(factions.map((item) => (item.id === faction.id ? { ...item, plate: event.target.value } : item)))
+                }
+              />
+              <input
+                className="color-input"
+                type="color"
+                title="线框"
+                aria-label={`${faction.name || "阵营"}线框`}
+                value={faction.ink || iconColors(factionColor([faction], faction.id), "sat").ink}
+                onChange={(event) =>
+                  onFaction(factions.map((item) => (item.id === faction.id ? { ...item, ink: event.target.value } : item)))
                 }
               />
               <NameField

@@ -89,6 +89,22 @@ function oneOf<T extends string>(list: { id: T }[], value: unknown, fallback: T)
   return list.some((item) => item.id === value) ? (value as T) : fallback;
 }
 
+function metersOf(value: unknown): number | undefined {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 8) return undefined;
+  return Math.min(500000, n);
+}
+
+function ringOf(value: unknown): LngLat[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const points = value.map(pair).filter((point): point is LngLat => point !== null);
+  return points.length >= 3 ? points.slice(0, 80) : undefined;
+}
+
+function hexOf(value: unknown): string | undefined {
+  return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value.toLowerCase() : undefined;
+}
+
 function factionId(value: unknown): Faction {
   return typeof value === "string" && value.length > 0 && value.length < 48 ? value : "friend";
 }
@@ -125,6 +141,7 @@ function featureOf(raw: unknown): Feature | null {
       personnel,
       equipment: equipmentOf(item.equipment),
       callsign: text(item.callsign, ""),
+      ...(metersOf(item.rangeM) ? { rangeM: metersOf(item.rangeM) } : {}),
     };
   }
   if (kind === "fort") {
@@ -136,6 +153,8 @@ function featureOf(raw: unknown): Feature | null {
       at,
       fortType: oneOf<FortType>(FORT_TYPES, item.fortType, "strongpoint"),
       heading: Number.isFinite(Number(item.heading)) ? Number(item.heading) : 0,
+      ...(metersOf(item.rangeM) ? { rangeM: metersOf(item.rangeM) } : {}),
+      ...(ringOf(item.reach) ? { reach: ringOf(item.reach) } : {}),
     };
   }
   if (kind === "label") {
@@ -190,8 +209,17 @@ function factionsOf(raw: unknown, used: string[]): FactionDef[] {
       const row = item as Record<string, unknown>;
       const id = text(row.id, "");
       if (!id || list.some((faction) => faction.id === id)) continue;
-      const color = typeof row.color === "string" && /^#[0-9a-fA-F]{6}$/.test(row.color) ? row.color.toLowerCase() : undefined;
-      list.push({ id, name: text(row.name, "阵营", 24), tone: toneOf(row.tone, "unknown"), ...(color ? { color } : {}) });
+      const color = hexOf(row.color);
+      const plate = hexOf(row.plate);
+      const ink = hexOf(row.ink);
+      list.push({
+        id,
+        name: text(row.name, "阵营", 24),
+        tone: toneOf(row.tone, "unknown"),
+        ...(color ? { color } : {}),
+        ...(plate ? { plate } : {}),
+        ...(ink ? { ink } : {}),
+      });
       if (list.length >= 8) break;
     }
   }
@@ -279,6 +307,7 @@ export function normalizeScenario(raw: unknown): Scenario | null {
     showGrid: Boolean(item.showGrid),
     showRelief: Boolean(item.showRelief),
     showLinks: Boolean(item.showLinks),
+    iconSize: item.iconSize === "s" || item.iconSize === "l" ? item.iconSize : "m",
     mode: item.mode === "view" ? "view" : "edit",
     groups,
     factions,

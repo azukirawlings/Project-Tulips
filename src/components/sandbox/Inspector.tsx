@@ -5,9 +5,11 @@ import { formatDistance, pathLength } from "@/map/geo";
 import { activeScenario, useSandbox } from "@/map/store";
 import type { CountPair, Dash, Feature, PathFeature, Scenario, ServiceId, UnitFeature } from "@/map/types";
 import {
+  AIR_UNITS,
   FORT_TYPES,
   GEAR,
   GROUPS,
+  LAND_UNITS,
   SERVICES,
   UNIT_TYPES,
   factionColor,
@@ -253,6 +255,7 @@ function Properties({
           </select>
         </Field>
       ) : null}
+      {feature.kind === "fort" && feature.fortType === "special" ? <SpecialFort feature={feature} onPatch={onPatch} /> : null}
       {feature.kind === "unit" || feature.kind === "fort" ? (
         <Field label={`朝向 ${Math.round(feature.heading)}°`}>
           <input
@@ -393,6 +396,44 @@ function Properties({
   );
 }
 
+function SpecialFort({
+  feature,
+  onPatch,
+}: {
+  feature: Extract<Feature, { kind: "fort" }>;
+  onPatch: (id: string, partial: object, coalesceKey?: string) => void;
+}) {
+  const setReach = useSandbox((state) => state.setReach);
+  const reachId = useSandbox((state) => state.reachId);
+  return (
+    <>
+      <Field label="射程（米）">
+        <input
+          className="field"
+          type="number"
+          min={0}
+          value={feature.rangeM ? Math.round(feature.rangeM) : 0}
+          onChange={(event) => {
+            const rangeM = Math.max(0, Number(event.target.value) || 0);
+            onPatch(feature.id, { rangeM: rangeM >= 8 ? rangeM : undefined }, `range:${feature.id}`);
+          }}
+        />
+      </Field>
+      <p className="hint">0 表示不画圆。圆是空心的，点不中。</p>
+      <div className="row-actions">
+        <button type="button" className={reachId === feature.id ? "text-btn on" : "text-btn"} onClick={() => setReach(feature.id)}>
+          画作用范围
+        </button>
+        {feature.reach?.length ? (
+          <button type="button" className="text-btn" onClick={() => onPatch(feature.id, { reach: undefined })}>
+            清除范围
+          </button>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 function isPath(feature: Feature): feature is PathFeature {
   return feature.kind === "polygon" || feature.kind === "curve" || feature.kind === "freehand" || feature.kind === "arrow";
 }
@@ -434,12 +475,41 @@ function UnitFields({
       {feature.service === "land" ? (
         <Field label="兵种">
           <select className="field" value={feature.unitType} onChange={(event) => onPatch(feature.id, { unitType: event.target.value })}>
-            {UNIT_TYPES.map((item) => (
+            {LAND_UNITS.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.label}
               </option>
             ))}
           </select>
+        </Field>
+      ) : null}
+      {feature.service === "air" ? (
+        <Field label="机种">
+          <select
+            className="field"
+            value={feature.unitType === "missile" ? "missile" : "air"}
+            onChange={(event) => onPatch(feature.id, { unitType: event.target.value })}
+          >
+            {AIR_UNITS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
+      {feature.service === "air" && feature.unitType === "missile" ? (
+        <Field label="射程（米）">
+          <input
+            className="field"
+            type="number"
+            min={0}
+            value={feature.rangeM ? Math.round(feature.rangeM) : 0}
+            onChange={(event) => {
+              const rangeM = Math.max(0, Number(event.target.value) || 0);
+              onPatch(feature.id, { rangeM: rangeM >= 8 ? rangeM : undefined }, `range:${feature.id}`);
+            }}
+          />
         </Field>
       ) : null}
       <Field label="层级">

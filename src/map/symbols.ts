@@ -34,6 +34,9 @@ const UNIT_ICONS: Record<UnitType, string> = {
   logistics: `<rect x="13" y="14" width="10" height="9"/><path d="M13 17.5 H23"/>`,
   hq: `<path d="M15.5 24 V12.5 H23.5 L21 15.4 L23.5 18.2 H15.5"/>`,
   special: `<path d="M18 12.2 L19.4 16.2 H23.6 L20.2 18.6 L21.5 22.6 L18 20.2 L14.5 22.6 L15.8 18.6 L12.4 16.2 H16.6 Z"/>`,
+  spg: `<rect x="12" y="16.4" width="12" height="5.2"/><path d="M17.2 16.4 L21.8 10.6"/>`,
+  mlrs: `<rect x="12" y="17.2" width="12" height="4.8"/><path d="M14.2 17.2 L16.2 11 M18 17.2 L20 11 M21.8 17.2 L23.8 11"/>`,
+  missile: `<path d="M18 7.5 L21.2 16 L18 14.2 L14.8 16 Z M18 14.2 V24 M15.2 21.5 H20.8"/>`,
 };
 
 const FORT_ICONS: Record<FortType, string> = {
@@ -45,10 +48,11 @@ const FORT_ICONS: Record<FortType, string> = {
   bridge: `<path class="frame" d="M6 13 H30 M6 23 H30 M11 13 V23 M18 13 V23 M25 13 V23"/>`,
   depot: `<rect class="frame" x="8" y="11" width="20" height="14"/><path d="M8 16 H28 M18 11 V25"/>`,
   obstacle: `<path class="frame" d="M7 27 L13 10 L18 22 L23 10 L29 27"/>`,
+  special: `<circle class="frame" cx="18" cy="18" r="11"/><path d="M18 10.5 V25.5 M10.5 18 H25.5"/>`,
 };
 
-function glyph(inner: string, heading: number): string {
-  return `<svg class="glyph" viewBox="0 0 36 36" style="transform:rotate(${heading}deg)" aria-hidden="true"><polygon class="nose" points="18,0.8 21,4.6 15,4.6"/>${inner}</svg>`;
+function glyph(inner: string, heading: number, size: number, plate: string, ink: string): string {
+  return `<svg class="glyph" viewBox="0 0 36 36" style="width:${size}px;height:${size}px;transform:rotate(${heading}deg);color:${ink}" aria-hidden="true"><circle class="plate" cx="18" cy="18" r="15.2" fill="${plate}" stroke="none"/><polygon class="nose" points="18,0.8 21,4.6 15,4.6"/>${inner}</svg>`;
 }
 
 export function pointMarker(
@@ -57,6 +61,7 @@ export function pointMarker(
   tone: FactionTone,
   level = "",
   scale = 1,
+  colors?: { plate: string; ink: string },
 ): {
   className: string;
   html: string;
@@ -74,11 +79,14 @@ export function pointMarker(
     };
   }
   if (feature.kind === "fort") {
+    const size = Math.round(36 * scale);
+    const plate = colors?.plate ?? "#14171c";
+    const ink = colors?.ink ?? "currentColor";
     return {
       className: `mk fort side-${tone}${selectedClass}`,
-      html: `${glyph(FORT_ICONS[feature.fortType], feature.heading)}<span class="cap">${esc(feature.name)}</span>`,
-      size: [36, 36],
-      anchor: [18, 18],
+      html: `${glyph(FORT_ICONS[feature.fortType], feature.heading, size, plate, ink)}<span class="cap" style="top:${size + 4}px">${esc(feature.name)}</span>`,
+      size: [size, size],
+      anchor: [Math.round(size / 2), Math.round(size / 2)],
     };
   }
   const stock = unitStock(feature);
@@ -86,14 +94,24 @@ export function pointMarker(
   const worn = ratio < 0.45 ? " worn" : "";
   const call = feature.callsign ? `<small>${esc(feature.callsign)}</small>` : "";
   const figure = stock.text ? `<small>${esc(stock.text)}</small>` : "";
-  const mark = feature.service === "land" ? UNIT_ICONS[feature.unitType] : SERVICE_MARK[feature.service];
+  const mark =
+    feature.service === "land"
+      ? UNIT_ICONS[feature.unitType]
+      : feature.service === "air" && feature.unitType === "missile"
+        ? UNIT_ICONS.missile
+        : SERVICE_MARK[feature.service];
   const size = Math.round(36 * scale);
+  const plate = colors?.plate ?? "#14171c";
+  const ink = colors?.ink ?? "currentColor";
   return {
     className: `mk side-${tone}${selectedClass}${worn}`,
     html: `<span class="ech">${esc(level)}</span>${glyph(
       `${FRAMES[tone]}${mark}`,
       feature.heading,
-    )}<span class="hp"><i style="width:${Math.max(0, Math.min(100, ratio * 100))}%"></i></span><span class="cap"><b>${esc(feature.name)}</b>${call}${figure}</span>`,
+      size,
+      plate,
+      ink,
+    )}<span class="hp" style="top:${size}px"><i style="width:${Math.max(0, Math.min(100, ratio * 100))}%"></i></span><span class="cap" style="top:${size + 6}px"><b>${esc(feature.name)}</b>${call}${figure}</span>`,
     size: [size, size],
     anchor: [Math.round(size / 2), Math.round(size / 2)],
   };

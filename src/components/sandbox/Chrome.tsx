@@ -27,7 +27,7 @@ import { downloadScenario, parseScenarioFile } from "@/map/io";
 import { activeScenario, canRedo, canUndo, useSandbox } from "@/map/store";
 import { CollabMenu, useCollabSession } from "./Collab";
 import type { Tool } from "@/map/types";
-import { BASEMAPS, FORT_TYPES, SERVICES, TOOLS, UNIT_TYPES, factionColor } from "@/map/types";
+import { AIR_UNITS, BASEMAPS, FORT_TYPES, LAND_UNITS, SERVICES, TOOLS } from "@/map/types";
 
 const ICONS: Record<Tool, typeof MousePointer2> = {
   select: MousePointer2,
@@ -237,6 +237,22 @@ function MapMenu() {
             <small>{item.detail}</small>
           </button>
         ))}
+      </div>
+      <div className="stack">
+        <span>图标</span>
+        <div className="seg">
+          {(
+            [
+              ["s", "小"],
+              ["m", "中"],
+              ["l", "大"],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} type="button" className={(scenario.iconSize ?? "m") === id ? "on" : ""} onClick={() => patch({ iconSize: id })}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       <label className="check">
         <input type="checkbox" checked={scenario.showLabels} onChange={() => patch({ showLabels: !scenario.showLabels })} />
@@ -562,14 +578,18 @@ export function BrushBar() {
   if (tool === "select") return null;
   return (
     <div className="brush">
-      <div className="seg">
+      <select
+        className="field slim"
+        aria-label="阵营"
+        value={faction}
+        onChange={(event) => setFaction(event.target.value)}
+      >
         {scenario.factions.map((item) => (
-          <button key={item.id} type="button" className={faction === item.id ? "on" : ""} onClick={() => setFaction(item.id)}>
-            <i className="swatch" style={{ background: factionColor(scenario.factions, item.id) }} />
+          <option key={item.id} value={item.id}>
             {item.name}
-          </button>
+          </option>
         ))}
-      </div>
+      </select>
       {tool === "unit" ? (
         <>
           <select className="field slim" aria-label="军种" value={service} onChange={(event) => setService(event.target.value as typeof service)}>
@@ -581,7 +601,21 @@ export function BrushBar() {
           </select>
           {service === "land" ? (
             <select className="field slim" aria-label="兵种" value={unitType} onChange={(event) => setUnitType(event.target.value as typeof unitType)}>
-              {UNIT_TYPES.map((item) => (
+              {LAND_UNITS.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {service === "air" ? (
+            <select
+              className="field slim"
+              aria-label="机种"
+              value={unitType === "missile" ? "missile" : "air"}
+              onChange={(event) => setUnitType(event.target.value as typeof unitType)}
+            >
+              {AIR_UNITS.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
                 </option>
@@ -624,10 +658,12 @@ export function BrushBar() {
 export function MapChrome() {
   const coach = useSandbox((state) => state.coach);
   const dismiss = useSandbox((state) => state.dismissCoach);
+  const reachId = useSandbox((state) => state.reachId);
   const comparing = useSandbox((state) => activeScenario(state).compareIds.length >= 2);
   return (
     <>
       <BrushBar />
+      {reachId ? <p className="compare-note">正在画作用范围。点下边界，双击、右键或 Enter 结束，Esc 取消。</p> : null}
       {comparing ? <p className="compare-note">正在比较多个时间。计划箭头和界线也会按时间深浅叠在一起。</p> : null}
       {coach ? (
         <div className="coach">

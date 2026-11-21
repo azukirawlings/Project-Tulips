@@ -21,7 +21,7 @@ import { areaMarker, pointMarker } from "./symbols";
 import { levelRank } from "./order";
 import { activeScenario, useSandbox } from "./store";
 import type { Feature, LngLat, PathFeature, Tool, UnitFeature } from "./types";
-import { BASEMAPS, FORT_TYPES, GEAR, HILLSHADE_URL, UNIT_TYPES, defaultHeadcount, factionColor, factionTone, groupOf, labelOf, mixHex, uid } from "./types";
+import { BASEMAPS, FORT_TYPES, GEAR, HILLSHADE_URL, UNIT_TYPES, defaultHeadcount, factionColor, factionTone, groupOf, iconColors, iconScale, labelOf, mixHex, uid } from "./types";
 
 type LeafletNS = typeof import("leaflet");
 type Entry = { geom: string; style: string; main: LeafletLayer; head?: LeafletLayer; label?: LeafletLayer; marks?: LeafletLayer };
@@ -64,8 +64,16 @@ function markerMeta(feature: Feature) {
   const level = feature.kind === "unit" ? scenario.levels.find((item) => item.id === feature.levelId)?.name ?? "" : "";
   const steps = Math.max(1, scenario.levels.length - 1);
   const rank = feature.kind === "unit" ? levelRank(scenario.levels, feature.levelId) : steps;
-  const scale = feature.kind === "unit" ? 1.16 - (Math.min(rank, steps) / steps) * 0.26 : 1;
+  const scale = (feature.kind === "unit" ? 1.16 - (Math.min(rank, steps) / steps) * 0.26 : 1) * iconScale(scenario.iconSize);
   return { tone, level, scale };
+}
+
+function iconLook(feature: Feature): { plate: string; ink: string } {
+  const scenario = activeScenario(useSandbox.getState());
+  const color = factionColor(scenario.factions, feature.faction);
+  const auto = iconColors(color, scenario.basemap);
+  const faction = scenario.factions.find((item) => item.id === feature.faction);
+  return { plate: faction?.plate || auto.plate, ink: faction?.ink || auto.ink };
 }
 
 function escText(value: string): string {
@@ -114,6 +122,9 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   hillPane.classList.add("hill-pane");
   const handlePane = map.createPane("handlePane");
   handlePane.style.zIndex = "670";
+  const underPane = map.createPane("under");
+  underPane.style.zIndex = "250";
+  underPane.style.pointerEvents = "none";
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.classList.add("grid-overlay");
   map.getContainer().appendChild(svg);
@@ -123,6 +134,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   let hill = L.tileLayer(HILLSHADE_URL, { pane: "hill", opacity: 0.42, maxZoom: 16, maxNativeZoom: 16 });
   const draftLayer = L.layerGroup().addTo(map);
   const overlay = L.layerGroup().addTo(map);
+  const rangeLayer = L.layerGroup().addTo(map);
   const handleLayer = L.layerGroup().addTo(map);
   const entries = new Map<string, Entry>();
   let swallow = false;
@@ -130,6 +142,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   let circleCenter: LngLat | null = null;
   let measureDone = false;
   let drawing = false;
+  let extend: { id: string; end: "start" | "end"; extra: LngLat[] } | null = null;
   let lastClick = 0;
   let seenNonce = useSandbox.getState().focus?.nonce ?? -1;
   let baseKey = "";
@@ -166,7 +179,8 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const scenario = activeScenario(useSandbox.getState());
     const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
     const color = factionColor(scenario.factions, feature.faction);
-    return JSON.stringify([feature, selected, tone, color, Math.round(map.getZoom())]);
+    const look = iconLook(feature);
+    return JSON.stringify([feature, selected, tone, color, look, scenario.iconSize, Math.round(map.getZoom())]);
   };
 
   const setInteractive = (layer: LeafletLayer, pointer: boolean, drag: boolean) => {
@@ -191,7 +205,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const style = styleFor(feature, selected);
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
       const meta = markerMeta(feature);
-      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale);
+      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale, iconLook(feature));
       entry.main.setIcon?.(
         L.divIcon({
           className: spec.className,
@@ -245,7 +259,18 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       layer.on("dragend", () => {
         const latlng = layer.getLatLng?.();
         if (!latlng) return;
-        useSandbox.getState().patchFeature(id, { at: fromLL(latlng) });
+        const next = fromLL(latlng);
+        const feature = activeScenario(useSandbox.getState()).features.find((item) => item.id === id);
+        if (feature?.kind === "fort" && feature.reach?.length) {
+          const dLng = next[0] - feature.at[0];
+          const dLat = next[1] - feature.at[1];
+          useSandbox.getState().patchFeature(id, {
+            at: next,
+            reach: feature.reach.map((point) => [point[0] + dLng, point[1] + dLat] as LngLat),
+          });
+          return;
+        }
+        useSandbox.getState().patchFeature(id, { at: next });
       });
     }
   };
@@ -292,7 +317,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const style = styleFor(feature, selected);
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
       const meta = markerMeta(feature);
-      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale);
+      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale, iconLook(feature));
       const marker = L.marker(toLL(feature.at), {
         icon: L.divIcon({
           className: spec.className,
@@ -436,6 +461,38 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       entry.marks?.remove();
       entries.delete(id);
     }
+    syncRanges();
+  };
+
+  const syncRanges = () => {
+    rangeLayer.clearLayers();
+    const scenario = activeScenario(useSandbox.getState());
+    const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
+    for (const feature of scenario.features) {
+      if (feature.hidden || !scenario.groups[groupOf(feature)]) continue;
+      const color = sideColor(feature.faction, tone);
+      const stroke = { pane: "under", interactive: false, color, weight: 1.6, fill: false, fillOpacity: 0, dashArray: "7 5" };
+      const ranged =
+        (feature.kind === "unit" && feature.unitType === "missile") || (feature.kind === "fort" && feature.fortType === "special");
+      if (ranged && feature.rangeM && feature.rangeM >= 8 && "at" in feature) {
+        rangeLayer.addLayer(L.circle(toLL(feature.at), { ...stroke, radius: feature.rangeM }));
+      }
+      if (feature.kind === "fort" && feature.fortType === "special" && feature.reach && feature.reach.length >= 3) {
+        const ring = pathDisplay({
+          id: feature.id,
+          kind: "curve",
+          name: "",
+          notes: "",
+          faction: feature.faction,
+          hidden: false,
+          points: feature.reach,
+          closed: true,
+          smooth: true,
+          dash: "solid",
+        });
+        rangeLayer.addLayer(L.polygon(ring.map(toLL), stroke));
+      }
+    }
   };
 
   const syncHandles = () => {
@@ -465,6 +522,35 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       return;
     }
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") return;
+    const openLine = !pathClosed(feature) && (feature.kind === "curve" || feature.kind === "freehand" || feature.kind === "arrow");
+    if (openLine && feature.points.length >= 2) {
+      const cap = (at: LngLat, end: "start" | "end") => {
+        const button = L.marker(toLL(at), {
+          pane: "handlePane",
+          keyboard: false,
+          icon: L.divIcon({
+            className: "end-handle",
+            html: "<span>+</span>",
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          }),
+        }).addTo(handleLayer);
+        button.on("mousedown", (event: MapEvent) => {
+          L.DomEvent.stopPropagation(event.originalEvent);
+          swallow = true;
+        });
+        button.on("click", (event: MapEvent) => {
+          L.DomEvent.stopPropagation(event.originalEvent);
+          swallow = true;
+          extend = { id: feature.id, end, extra: [] };
+          drawing = true;
+          draft = [];
+          syncHandles();
+        });
+      };
+      cap(feature.points[0]!, "start");
+      cap(feature.points[feature.points.length - 1]!, "end");
+    }
     if (feature.points.length > 48) return;
     feature.points.forEach((point, index) => {
       add(point, (event) => {
@@ -603,6 +689,27 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   };
 
   const finishPath = () => {
+    if (extend) {
+      const pending = extend;
+      extend = null;
+      drawing = false;
+      const feature = activeScenario(useSandbox.getState()).features.find((item) => item.id === pending.id);
+      if (feature && "points" in feature && pending.extra.length) {
+        const extra = dedupe(pending.extra);
+        const points = pending.end === "end" ? dedupe([...feature.points, ...extra]) : dedupe([...extra].reverse().concat(feature.points));
+        useSandbox.getState().patchFeature(feature.id, { points });
+      }
+      clearDraft();
+      return;
+    }
+    const reachId = useSandbox.getState().reachId;
+    if (reachId) {
+      const points = dedupe(draft);
+      if (points.length >= 3) useSandbox.getState().patchFeature(reachId, { reach: points });
+      useSandbox.getState().setReach(null);
+      clearDraft();
+      return;
+    }
     const state = useSandbox.getState();
     const tool = state.tool;
     const points = dedupe(draft);
@@ -650,6 +757,20 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     }
     const state = useSandbox.getState();
     const point = fromLL(event.latlng);
+    if (extend) {
+      extend.extra.push(point);
+      const feature = activeScenario(state).features.find((item) => item.id === extend.id);
+      if (feature && "points" in feature) {
+        const preview = extend.end === "end" ? [...feature.points, ...extend.extra] : [...extend.extra].reverse().concat(feature.points);
+        showRubber(preview, false);
+      }
+      return;
+    }
+    if (state.reachId) {
+      draft.push(point);
+      showRubber(draft, draft.length >= 3);
+      return;
+    }
     const tool = state.tool;
     if (tool === "select") {
       state.select(null);
@@ -1150,6 +1271,14 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       return;
     }
     const meta = event.metaKey || event.ctrlKey;
+    if (meta && event.key.toLowerCase() === "c") {
+      if (activeScenario(state).mode === "view") return;
+      const ids = state.pickedIds.length ? state.pickedIds : state.selectedId ? [state.selectedId] : [];
+      if (!ids.length) return;
+      event.preventDefault();
+      state.duplicateFeatures(ids);
+      return;
+    }
     if (meta && event.key.toLowerCase() === "z") {
       event.preventDefault();
       if (event.shiftKey) state.redo();
@@ -1168,6 +1297,17 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       return;
     }
     if (event.key === "Escape") {
+      if (extend) {
+        extend = null;
+        drawing = false;
+        clearDraft();
+        return;
+      }
+      if (state.reachId) {
+        state.setReach(null);
+        clearDraft();
+        return;
+      }
       if (draft.length || circleCenter) clearDraft();
       else if (state.selectedId) state.select(null);
       else state.setTool("select");

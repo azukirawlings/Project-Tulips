@@ -39,6 +39,7 @@ export type SandboxState = {
   panelOpen: boolean;
   board: boolean;
   menu: "map" | "file" | "help" | "collab" | null;
+  reachId: string | null;
   appearance: Appearance;
   viewSplit: number;
   coach: boolean;
@@ -57,6 +58,7 @@ export type SandboxState = {
   setPanel: (open: boolean) => void;
   setBoard: (open: boolean) => void;
   setMenu: (menu: SandboxState["menu"]) => void;
+  setReach: (id: string | null) => void;
   setAppearance: (partial: Partial<Appearance>) => void;
   setViewSplit: (value: number) => void;
   dismissCoach: () => void;
@@ -71,6 +73,7 @@ export type SandboxState = {
   deleteFeature: (id: string) => void;
   deleteFeatures: (ids: string[]) => void;
   duplicateFeature: (id: string) => void;
+  duplicateFeatures: (ids: string[]) => void;
   nudgeSelected: (dLng: number, dLat: number) => void;
   rotateSelected: (delta: number) => void;
   undo: () => void;
@@ -200,6 +203,7 @@ export const useSandbox = create<SandboxState>()(
     (set, get) => ({
       ...initial(),
       pickedIds: [],
+      reachId: null,
       setTool: (tool) => {
         const scenario = currentOf(get());
         if ((scenario.mode === "view" || !collabWriteOk()) && tool !== "select") return;
@@ -215,6 +219,7 @@ export const useSandbox = create<SandboxState>()(
       setPanel: (panelOpen) => set({ panelOpen, board: panelOpen ? get().board : false }),
       setBoard: (board) => set({ board, panelOpen: board ? true : get().panelOpen }),
       setMenu: (menu) => set({ menu }),
+      setReach: (reachId) => set({ reachId, menu: null }),
       setAppearance: (partial) => {
         const appearance = normalizeAppearance({ ...get().appearance, ...partial });
         rememberAppearance(appearance);
@@ -271,7 +276,7 @@ export const useSandbox = create<SandboxState>()(
         const state = get();
         const scenario = currentOf(state);
         const viewOnly = Object.keys(partial).every((key) =>
-          ["basemap", "mode", "showLabels", "showGrid", "showRelief", "showLinks", "groups", "center", "zoom", "activeMomentId", "compareIds"].includes(key),
+          ["basemap", "mode", "showLabels", "showGrid", "showRelief", "showLinks", "iconSize", "groups", "center", "zoom", "activeMomentId", "compareIds"].includes(key),
         );
         if (!viewOnly && !collabWriteOk()) return;
         set({
@@ -354,14 +359,34 @@ export const useSandbox = create<SandboxState>()(
         });
       },
       duplicateFeature: (id) => {
+        get().duplicateFeatures([id]);
+      },
+      duplicateFeatures: (ids) => {
+        if (!collabWriteOk()) return;
         const state = get();
         const scenario = currentOf(state);
-        const feature = scenario.features.find((item) => item.id === id);
-        if (!feature) return;
-        const copy = translateFeature(structuredClone(feature), 0.004, -0.003);
-        copy.id = uid(feature.kind);
-        copy.name = `${feature.name} 副本`.slice(0, 80);
-        get().addFeature(copy);
+        const copies: Feature[] = [];
+        for (const id of ids) {
+          const feature = scenario.features.find((item) => item.id === id);
+          if (!feature) continue;
+          const copy = translateFeature(structuredClone(feature), 0.004, -0.003);
+          copy.id = uid(feature.kind);
+          copy.name = `${feature.name} 副本`.slice(0, 80);
+          copies.push(copy);
+        }
+        if (!copies.length) return;
+        set({
+          scenarios: replace(state, {
+            ...scenario,
+            features: [...scenario.features, ...copies],
+            updatedAt: Date.now(),
+          }),
+          selectedId: copies[0]!.id,
+          pickedIds: copies.map((feature) => feature.id),
+          past: [...state.past, { scenarioId: scenario.id, features: scenario.features }].slice(-80),
+          future: [],
+          coalesce: null,
+        });
       },
       nudgeSelected: (dLng, dLat) => {
         const state = get();
@@ -370,11 +395,13 @@ export const useSandbox = create<SandboxState>()(
         if (!feature) return;
         const moved = translateFeature(feature, dLng, dLat);
         const partial =
-          moved.kind === "unit" || moved.kind === "fort" || moved.kind === "label"
-            ? { at: moved.at }
-            : moved.kind === "circle"
-              ? { center: moved.center }
-              : { points: moved.points };
+          moved.kind === "fort"
+            ? { at: moved.at, ...(moved.reach ? { reach: moved.reach } : {}) }
+            : moved.kind === "unit" || moved.kind === "label"
+              ? { at: moved.at }
+              : moved.kind === "circle"
+                ? { center: moved.center }
+                : { points: moved.points };
         get().patchFeature(feature.id, partial, `nudge:${feature.id}`);
       },
       rotateSelected: (delta) => {
@@ -683,6 +710,7 @@ export const useSandbox = create<SandboxState>()(
           coalesce: null,
           focus: null,
           pickedIds: [],
+          reachId: null,
         };
       },
     },

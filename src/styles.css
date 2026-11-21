@@ -326,13 +326,49 @@
   from { opacity: 0; transform: translateY(-6px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes pop-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px); }
+}
 @keyframes panel-in {
-  from { opacity: 0; transform: translateX(10px); }
+  from { opacity: 0; transform: translateX(12px); }
   to { opacity: 1; transform: none; }
 }
+@keyframes panel-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(12px); }
+}
+@keyframes board-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes board-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(8px); }
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes card-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px); }
+}
+.pop-panel.out { animation: pop-out 150ms ease-in forwards; }
+.shell.panel-leaving .panel { animation: panel-out 160ms ease-in forwards; }
+.board-window { animation: board-in 180ms ease-out; }
+.board-window.out { animation: board-out 160ms ease-in forwards; }
+.info-card { animation: card-in 180ms ease-out; }
+.info-card.out { animation: card-out 150ms ease-in forwards; }
 @media (prefers-reduced-motion: reduce) {
   .pop-panel,
-  .shell.panel-open .panel { animation: none; }
+  .pop-panel.out,
+  .shell.panel-open .panel,
+  .shell.panel-leaving .panel,
+  .board-window,
+  .board-window.out,
+  .info-card,
+  .info-card.out { animation: none; }
   .tool,
   .icon-btn,
   .text-btn,
@@ -504,6 +540,22 @@
   gap: 8px;
   align-items: center;
   font-size: 13px;
+}
+.ov-rows li span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.gear-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 .org-list {
   list-style: none;

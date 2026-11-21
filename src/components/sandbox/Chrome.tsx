@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Castle,
   Circle,
@@ -21,6 +21,26 @@ import {
   LayoutList,
   X,
 } from "lucide-react";
+
+export function Presence({ open, children }: { open: boolean; children: (closing: boolean) => ReactNode }) {
+  const [alive, setAlive] = useState(open);
+  const [closing, setClosing] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setAlive(true);
+      setClosing(false);
+      return;
+    }
+    setClosing(true);
+    const id = window.setTimeout(() => {
+      setAlive(false);
+      setClosing(false);
+    }, 170);
+    return () => window.clearTimeout(id);
+  }, [open]);
+  if (!alive && !open) return null;
+  return <>{children(closing && !open)}</>;
+}
 import { formatPair } from "@/map/geo";
 import { getHud, getHudServer, mapApi, subscribeHud } from "@/map/hud";
 import { downloadScenario, parseScenarioFile } from "@/map/io";
@@ -88,7 +108,7 @@ export function TopBar() {
             <Settings size={16} />
             设置
           </button>
-          {menu === "map" ? <MapMenu /> : null}
+          <Presence open={menu === "map"}>{(closing) => <MapMenu closing={closing} />}</Presence>
         </div>
         <div className="pop" data-menu-root>
           <button
@@ -100,7 +120,7 @@ export function TopBar() {
             <FolderOpen size={16} />
             沙盘
           </button>
-          {menu === "file" ? <FileMenu /> : null}
+          <Presence open={menu === "file"}>{(closing) => <FileMenu closing={closing} />}</Presence>
         </div>
         <div className="pop" data-menu-root>
           <button
@@ -112,7 +132,7 @@ export function TopBar() {
             <Users size={16} />
             协作
           </button>
-          {menu === "collab" ? <CollabMenu /> : null}
+          <Presence open={menu === "collab"}>{(closing) => <CollabMenu closing={closing} />}</Presence>
         </div>
         <button
           type="button"
@@ -219,11 +239,11 @@ function Search() {
   );
 }
 
-function MapMenu() {
+function MapMenu({ closing = false }: { closing?: boolean }) {
   const scenario = useSandbox(activeScenario);
   const patch = useSandbox((state) => state.patchScenario);
   return (
-    <div className="pop-panel">
+    <div className={closing ? "pop-panel out" : "pop-panel"}>
       <p className="hint">默认关掉景点、商户和多余地名。需要路名时再打开标注。</p>
       <div className="base-grid">
         {BASEMAPS.map((item) => (
@@ -437,7 +457,7 @@ export function compressImage(file: File): Promise<string> {
   });
 }
 
-function FileMenu() {
+function FileMenu({ closing = false }: { closing?: boolean }) {
   const scenarios = useSandbox((state) => state.scenarios);
   const activeId = useSandbox((state) => state.activeId);
   const scenario = useSandbox(activeScenario);
@@ -452,7 +472,7 @@ function FileMenu() {
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   return (
-    <div className="pop-panel file-panel">
+    <div className={closing ? "pop-panel file-panel out" : "pop-panel file-panel"}>
       <div className="row-actions">
         <button type="button" className="text-btn" onClick={create}>
           新建

@@ -6,7 +6,7 @@ import { descendantIds, levelRank, tally, unitsOf } from "@/map/order";
 
 const TONES: FactionTone[] = ["friend", "foe", "neutral", "unknown"];
 
-export function Overview() {
+export function Overview({ closing = false }: { closing?: boolean }) {
   const scenario = useSandbox(activeScenario);
   const focusFeature = useSandbox((state) => state.focusFeature);
   const units = useMemo(() => unitsOf(scenario.features), [scenario.features]);
@@ -25,11 +25,10 @@ export function Overview() {
   };
   const toggleUnit = (unit: UnitFeature) => {
     setCompare((current) => {
-      if (current.kind === "units" && current.faction === unit.faction) {
-        const ids = current.ids.includes(unit.id) ? current.ids.filter((item) => item !== unit.id) : [...current.ids, unit.id];
-        return { kind: "units", faction: unit.faction, ids };
-      }
-      return { kind: "units", faction: unit.faction, ids: [unit.id] };
+      const prev = current.kind === "units" && current.faction === unit.faction ? current.ids : [];
+      if (prev.includes(unit.id)) return { kind: "units", faction: unit.faction, ids: prev.filter((id) => id !== unit.id) };
+      const kept = prev.filter((id) => !descendantIds(units, id).has(unit.id) && !descendantIds(units, unit.id).has(id));
+      return { kind: "units", faction: unit.faction, ids: [...kept, unit.id] };
     });
   };
   const factionOn = (id: string) => compare.kind === "factions" && compare.ids.includes(id);
@@ -42,7 +41,7 @@ export function Overview() {
   const setBoard = useSandbox((state) => state.setBoard);
 
   return (
-    <div className="board-window" role="dialog" aria-label="总览">
+    <div className={closing ? "board-window out" : "board-window"} role="dialog" aria-label="总览">
       <div className="board-pick">
         <header>
           <strong>选择</strong>
@@ -145,7 +144,10 @@ export function Overview() {
           <ul className="ov-rows">
             {stats.rows.map((row) => (
               <li key={row.id}>
-                <span>{row.label}</span>
+                <span>
+                  <GearMark id={row.id} />
+                  {row.label}
+                </span>
                 <b>
                   {row.now}/{row.orig}
                 </b>
@@ -402,6 +404,41 @@ function NameField({ value, label, onCommit }: { value: string; label: string; o
         else setDraft(value);
       }}
     />
+  );
+}
+
+const GEAR_MARK: Record<string, string> = {
+  vehicle: "M2.5 11h11M4 11V8h8v3M5.2 8 6.4 5.2h3.4L11 8",
+  truck: "M1.5 11h13M3 11V7.2h7V11M10 11V6.2h3.2L15 9v2",
+  apc: "M2 12h12M3.2 12V7.2h9.6V12M6 7.2V5.4h4V7.2",
+  ifv: "M2 12h12M3 12V8h10v4M8 8V5.2M6.2 6.4h3.6",
+  amphib: "M2.2 9.5h11.6M3.2 9.5V6.8h9.6v2.7M3 12.2c1.2.8 2 .8 3.2 0s2-.8 3.2 0 2 .8 3.2 0",
+  lightTank: "M2.4 11.5h11.2M3.4 11.5V8.2h9.2v3.3M8 8.2V5.6",
+  mbt: "M1.6 12h12.8M2.6 12V8h10.8v4M8 8V4.6M5.6 6.2h4.8",
+  spg: "M3 12h10M4 12V8.4h8V12M8 8.4V3.2",
+  mlrs: "M2.4 12h11.2M3.4 12V7h9.2v5M5 7V4.2M8 7V3.4M11 7V4.2",
+  spaag: "M3 12h10M4 12V8h8v4M8 8V5.2M4.8 4.2a4 4 0 0 1 6.4 0",
+  transHeli: "M3 6.2h10M8 6.2v1.4M4.4 9.2h7.2v2.4H4.4zM2.8 12.4h3.2",
+  attackHeli: "M2.6 5.6h10.8M8 5.6v1.6M3.6 8.6 12.4 10.2 11.2 12.2H5.2L3.6 10.4z",
+  smallBoat: "M3 10.5 8 6.8 13 10.5M4.2 10.5h7.6l-.8 2.2H5z",
+  patrol: "M2.4 10.2 8 6.2 13.6 10.2M3.6 10.2h8.8l-1 2.4H4.6zM8 6.2V4",
+  gunboat: "M2 10 8 5.6 14 10M3.2 10h9.6l-1.1 2.6H4.3zM8 5.6V3.4",
+  coastal: "M1.6 10.4 8 5 14.4 10.4M2.8 10.4h10.4L12 13H4zM8 5V2.8",
+  frigate: "M1.4 10.6 8 4.4 14.6 10.6M2.4 10.6h11.2L12.2 13.4H3.8zM6.4 7.2h3.2M8 4.4V2.4",
+  destroyer: "M1.2 11 8 4 14.8 11M2.2 11h11.6L12.4 13.6H3.6zM5.6 8h4.8M8 4V2",
+  cruiser: "M1 11.2 8 3.6 15 11.2M2 11.2h12l-1.4 2.6H3.4zM5.2 8h5.6M8 3.6V1.8",
+  carrier: "M1 10.4h14L13.2 13.4H2.8zM3.2 10.4V7.2h9.6v3.2M6 7.2V5h4v2.2",
+  fighter: "M2 8.6 8 5.2 14 8.6M8 5.2v6.2M5.2 9.4 8 11.4 10.8 9.4",
+  strike: "M1.6 9.2 8 4.6 14.4 9.2M8 4.6v6.6M4.4 10.4 8 12.2 11.6 10.4",
+  bomber: "M1.2 9.6h13.6M8 9.6V4.2M4.6 7.2h6.8M5 11.4h6",
+  airlift: "M1.4 8.8h13.2M3.2 8.8v3.2h9.6V8.8M6.4 8.8V6.2h3.2v2.6",
+};
+
+function GearMark({ id }: { id: string }) {
+  return (
+    <svg className="gear-mark" viewBox="0 0 16 16" aria-hidden="true">
+      <path d={GEAR_MARK[id] ?? "M3 8h10"} />
+    </svg>
   );
 }
 

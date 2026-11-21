@@ -730,7 +730,8 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const state = useSandbox.getState();
     const scenario = activeScenario(state);
     const visible = new Set<string>();
-    const envKey = `${scenario.basemap}|${scenario.iconSize}|${scenario.factions
+    const senior = scenario.briefLabels ? [...seniorSet(scenario)].sort().join(",") : "";
+    const envKey = `${scenario.basemap}|${scenario.iconSize}|${scenario.briefLabels ? 1 : 0}|${senior}|${scenario.factions
       .map((item) => `${item.id}:${item.color ?? ""}:${item.plate ?? ""}:${item.ink ?? ""}`)
       .join(",")}`;
     for (const feature of scenario.features) {

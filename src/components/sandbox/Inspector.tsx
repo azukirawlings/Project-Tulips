@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
-import { compressImage } from "./Chrome";
+import { compressImage, Presence } from "./Chrome";
 import { formatDistance, pathLength } from "@/map/geo";
 import { activeScenario, useSandbox } from "@/map/store";
 import type { CountPair, Dash, Feature, PathFeature, Scenario, ServiceId, UnitFeature } from "@/map/types";
@@ -631,22 +631,30 @@ export function FeatureCard() {
   const patchFeature = useSandbox((state) => state.patchFeature);
   const deleteFeature = useSandbox((state) => state.deleteFeature);
   const duplicateFeature = useSandbox((state) => state.duplicateFeature);
-  const feature = scenario.features.find((item) => item.id === selectedId) ?? null;
-  if (!feature || board) return null;
+  const live = scenario.features.find((item) => item.id === selectedId) ?? null;
+  const held = useRef(live);
+  if (live && !board) held.current = live;
+  const feature = held.current;
   return (
-    <aside className="info-card" aria-label="标绘详情">
-      <header>
-        <span>{kindLabel(feature, scenario)}</span>
-        <button type="button" className="icon-btn" aria-label="关闭" onClick={() => select(null)}>
-          <X size={16} />
-        </button>
-      </header>
-      {scenario.mode === "view" ? (
-        <Dossier feature={feature} scenario={scenario} />
-      ) : (
-        <Properties feature={feature} onPatch={patchFeature} onDelete={deleteFeature} onCopy={duplicateFeature} />
-      )}
-    </aside>
+    <Presence open={Boolean(live) && !board}>
+      {(closing) =>
+        feature ? (
+          <aside className={closing ? "info-card out" : "info-card"} aria-label="标绘详情">
+            <header>
+              <span>{kindLabel(feature, scenario)}</span>
+              <button type="button" className="icon-btn" aria-label="关闭" onClick={() => select(null)}>
+                <X size={16} />
+              </button>
+            </header>
+            {scenario.mode === "view" ? (
+              <Dossier feature={feature} scenario={scenario} />
+            ) : (
+              <Properties feature={feature} onPatch={patchFeature} onDelete={deleteFeature} onCopy={duplicateFeature} />
+            )}
+          </aside>
+        ) : null
+      }
+    </Presence>
   );
 }
 

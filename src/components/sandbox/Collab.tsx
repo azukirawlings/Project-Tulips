@@ -349,12 +349,12 @@ export function useCollabSession() {
   return useSyncExternalStore(subscribe, getSnap, getSnap);
 }
 
-export function CollabMenu() {
+export function CollabMenu({ closing = false }: { closing?: boolean }) {
   const session = useCollabSession();
   const live = session.status !== "idle";
 
   return (
-    <div className="pop-panel file-panel collab-panel">
+    <div className={closing ? "pop-panel file-panel collab-panel out" : "pop-panel file-panel collab-panel"}>
       <div className="stack">
         {live ? (
           <>

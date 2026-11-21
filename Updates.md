@@ -6,7 +6,7 @@
 2. In the select tool, drag with the right button to move the map. The left button still draws a selection box.
 3. The graphics list is grouped. Each group can be opened or closed.
 4. Details for the selected graphic open in a card on the map. Edit mode changes the graphic there. View mode shows the stored description and strength.
-5. The overview opens in its own window. Each faction is a separate block. Services are divided inside it, and each unit is marked with its echelon. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
+5. The overview opens in its own window. Each faction is a separate block. Services are divided inside it, and each unit is marked with its echelon. The right side states whose losses and status are shown. A formation and a unit under it are not counted together; the last click is kept. Equipment rows carry a small mark. Editing factions and echelons stays in the side panel.
 6. Unit icons are rectangular and slightly larger than fortification icons. The symbol sits inside the plate, and the plate has a black border.
 7. A route name sits beside the line. A range is labeled with the owner's name and range. An area of effect is labeled with the work's name. A defense line can be turned to face the other side.
 8. Settings adds a compact mode. For each service, only the highest echelon present on the map keeps its name. Strongpoints and special works keep theirs. The selected unit still shows its name.

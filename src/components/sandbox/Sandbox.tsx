@@ -1,5 +1,5 @@
-import { useEffect, type CSSProperties } from "react";
-import { MapChrome, StatusBar, ToolRail, TopBar } from "./Chrome";
+import { useEffect, useState, type CSSProperties } from "react";
+import { MapChrome, Presence, StatusBar, ToolRail, TopBar } from "./Chrome";
 import { Inspector, FeatureCard } from "./Inspector";
 import { Overview } from "./Overview";
 import { MapView } from "@/map/MapView";
@@ -23,6 +23,22 @@ export function Sandbox() {
     return () => window.removeEventListener("mousedown", onPointer);
   }, [menu, setMenu]);
 
+  const [panelOn, setPanelOn] = useState(panelOpen);
+  const [panelLeaving, setPanelLeaving] = useState(false);
+  useEffect(() => {
+    if (panelOpen) {
+      setPanelOn(true);
+      setPanelLeaving(false);
+      return;
+    }
+    setPanelLeaving(true);
+    const id = window.setTimeout(() => {
+      setPanelOn(false);
+      setPanelLeaving(false);
+    }, 170);
+    return () => window.clearTimeout(id);
+  }, [panelOpen]);
+
   const color = /^#[0-9a-fA-F]{6}$/.test(appearance.color) ? appearance.color : "#0c0e0d";
   const light = luminance(color) > 0.55;
   const style = {
@@ -40,14 +56,14 @@ export function Sandbox() {
   } as CSSProperties;
 
   return (
-    <div className={panelOpen ? "shell panel-open" : "shell"} data-wallpaper={appearance.image ? "1" : undefined} style={style}>
+    <div className={`shell${panelOn ? " panel-open" : ""}${panelLeaving ? " panel-leaving" : ""}`} data-wallpaper={appearance.image ? "1" : undefined} style={style}>
       <TopBar />
       <ToolRail />
       <div className="mapcell">
         <MapView />
         <MapChrome />
         <FeatureCard />
-        {board ? <Overview /> : null}
+        <Presence open={board}>{(closing) => <Overview closing={closing} />}</Presence>
       </div>
       <Inspector />
       <StatusBar />

@@ -107,6 +107,10 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     worldCopyJump: true,
     keyboard: false,
     doubleClickZoom: true,
+    preferCanvas: true,
+    markerZoomAnimation: false,
+    fadeAnimation: false,
+    renderer: L.canvas({ padding: 0.15, tolerance: 6 }),
   });
   map.attributionControl.setPrefix(false);
   const isOn = (id: string) => {
@@ -235,7 +239,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       entry.head = undefined;
     } else {
       entry.main.setStyle?.(style);
-      entry.main.setLatLngs?.(pathDisplay(feature).map(toLL));
+      entry.main.setLatLngs?.(screenPath(pathDisplay(feature)).map(toLL));
     }
     entry.main.setTooltipContent?.(feature.name);
     entry.main.bringToFront?.();
@@ -395,52 +399,61 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       if (feature.hidden || !scenario.groups[groupOf(feature)]) continue;
       const dash = "dash" in feature ? feature.dash : "solid";
       if (dash !== "cross" && dash !== "defense") continue;
-      const source = feature.kind === "circle" ? circleEdge(feature.center, feature.radiusM) : "points" in feature ? pathDisplay(feature) : [];
-      if (source.length < 2) continue;
-      const pix = source.map((point) => map.latLngToContainerPoint(toLL(point)));
+      const raw = feature.kind === "circle" ? circleEdge(feature.center, feature.radiusM) : "points" in feature ? feature.points : [];
+      if (raw.length < 2 || !lineHits(raw)) continue;
+      const source = feature.kind !== "circle" && "smooth" in feature && feature.smooth ? pathDisplay(feature as PathFeature) : raw;
+      const mpp = Math.max(0.01, metersPerPixel(map.getCenter().lat, map.getZoom()));
+      let travel = 0;
       let visible = 0;
-      for (let i = 1; i < pix.length; i += 1) {
-        const clip = clipSeg(pix[i - 1]!.x, pix[i - 1]!.y, pix[i]!.x, pix[i]!.y, minX, minY, maxX, maxY);
+      const parts: { from: { x: number; y: number }; to: { x: number; y: number }; len: number; travel: number }[] = [];
+      for (let i = 1; i < source.length; i += 1) {
+        const a = source[i - 1]!;
+        const b = source[i]!;
+        const meters = distMeters(a, b);
+        if (!lineHits([a, b])) {
+          travel += meters / mpp;
+          continue;
+        }
+        const from = map.latLngToContainerPoint(toLL(a));
+        const to = map.latLngToContainerPoint(toLL(b));
+        const len = Math.hypot(to.x - from.x, to.y - from.y);
+        const clip = clipSeg(from.x, from.y, to.x, to.y, minX, minY, maxX, maxY);
         if (clip) visible += Math.hypot(clip.bx - clip.ax, clip.by - clip.ay);
+        parts.push({ from, to, len, travel });
+        travel += len;
       }
       if (visible < 1) continue;
-      const spacing = Math.max(16, visible / 280);
+      const spacing = Math.max(16, visible / 220);
       const phase = spacing * 0.65;
-      let travel = 0;
       let count = 0;
       let d = "";
-      for (let i = 1; i < pix.length; i += 1) {
-        const from = pix[i - 1]!;
-        const to = pix[i]!;
-        const dx = to.x - from.x;
-        const dy = to.y - from.y;
-        const len = Math.hypot(dx, dy);
-        if (len >= 0.5) {
-          const clip = clipSeg(from.x, from.y, to.x, to.y, minX, minY, maxX, maxY);
-          if (clip) {
-            const ux = dx / len;
-            const uy = dy / len;
-            const px = -uy;
-            const py = ux;
-            const begin = travel + Math.hypot(clip.ax - from.x, clip.ay - from.y);
-            const end = travel + Math.hypot(clip.bx - from.x, clip.by - from.y);
-            const stepIn = ((phase - begin) % spacing + spacing) % spacing;
-            for (let dist = begin + stepIn; dist <= end && count < 280; dist += spacing) {
-              const along = dist - travel;
-              const x = from.x + ux * along;
-              const y = from.y + uy * along;
-              if (dash === "defense") {
-                d += `M${x.toFixed(1)} ${y.toFixed(1)}l${(px * 6).toFixed(1)} ${(py * 6).toFixed(1)}`;
-              } else {
-                const arm = 3.2;
-                d += `M${(x - (ux + px) * arm).toFixed(1)} ${(y - (uy + py) * arm).toFixed(1)}l${((ux + px) * arm * 2).toFixed(1)} ${((uy + py) * arm * 2).toFixed(1)}`;
-                d += `M${(x - (ux - px) * arm).toFixed(1)} ${(y - (uy - py) * arm).toFixed(1)}l${((ux - px) * arm * 2).toFixed(1)} ${((uy - py) * arm * 2).toFixed(1)}`;
-              }
-              count += 1;
-            }
+      for (const part of parts) {
+        const dx = part.to.x - part.from.x;
+        const dy = part.to.y - part.from.y;
+        const len = part.len;
+        if (len < 0.5) continue;
+        const clip = clipSeg(part.from.x, part.from.y, part.to.x, part.to.y, minX, minY, maxX, maxY);
+        if (!clip) continue;
+        const ux = dx / len;
+        const uy = dy / len;
+        const px = -uy;
+        const py = ux;
+        const begin = part.travel + Math.hypot(clip.ax - part.from.x, clip.ay - part.from.y);
+        const end = part.travel + Math.hypot(clip.bx - part.from.x, clip.by - part.from.y);
+        const stepIn = ((phase - begin) % spacing + spacing) % spacing;
+        for (let dist = begin + stepIn; dist <= end && count < 220; dist += spacing) {
+          const along = dist - part.travel;
+          const x = part.from.x + ux * along;
+          const y = part.from.y + uy * along;
+          if (dash === "defense") {
+            d += `M${x.toFixed(1)} ${y.toFixed(1)}l${(px * 6).toFixed(1)} ${(py * 6).toFixed(1)}`;
+          } else {
+            const arm = 3.2;
+            d += `M${(x - (ux + px) * arm).toFixed(1)} ${(y - (uy + py) * arm).toFixed(1)}l${((ux + px) * arm * 2).toFixed(1)} ${((uy + py) * arm * 2).toFixed(1)}`;
+            d += `M${(x - (ux - px) * arm).toFixed(1)} ${(y - (uy - py) * arm).toFixed(1)}l${((ux - px) * arm * 2).toFixed(1)} ${((uy - py) * arm * 2).toFixed(1)}`;
           }
+          count += 1;
         }
-        travel += len;
       }
       if (!d) continue;
       const color = sideColor(feature.faction, tone);
@@ -503,6 +516,84 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     return { ax: x1 + t0 * dx, ay: y1 + t0 * dy, bx: x1 + t1 * dx, by: y1 + t1 * dy };
   };
 
+  const lineHits = (points: LngLat[]) => {
+    const bounds = map.getBounds().pad(0.35);
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const south = bounds.getSouth();
+    const north = bounds.getNorth();
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1]!;
+      const b = points[i]!;
+      if (
+        Math.max(a[0], b[0]) >= west &&
+        Math.min(a[0], b[0]) <= east &&
+        Math.max(a[1], b[1]) >= south &&
+        Math.min(a[1], b[1]) <= north
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const screenPath = (points: LngLat[]): LngLat[] => {
+    if (points.length < 2) return points;
+    const bounds = map.getBounds().pad(0.55);
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const south = bounds.getSouth();
+    const north = bounds.getNorth();
+    const minMeters = metersPerPixel(map.getCenter().lat, map.getZoom()) * 2.4;
+    const out: LngLat[] = [];
+    let last: LngLat | null = null;
+    const push = (point: LngLat) => {
+      if (last && distMeters(last, point) < minMeters) return;
+      out.push(point);
+      last = point;
+    };
+    for (let i = 1; i < points.length; i += 1) {
+      const a = points[i - 1]!;
+      const b = points[i]!;
+      if (
+        Math.max(a[0], b[0]) < west ||
+        Math.min(a[0], b[0]) > east ||
+        Math.max(a[1], b[1]) < south ||
+        Math.min(a[1], b[1]) > north
+      ) {
+        continue;
+      }
+      push(a);
+      push(b);
+    }
+    return out.length >= 2 ? out : points.slice(0, 2);
+  };
+
+  const refitVectors = () => {
+    const scenario = activeScenario(useSandbox.getState());
+    for (const feature of scenario.features) {
+      if (feature.kind !== "curve" && feature.kind !== "freehand" && feature.kind !== "polygon") continue;
+      const entry = entries.get(feature.id);
+      if (!entry) continue;
+      const shown = screenPath(pathDisplay(feature));
+      if (shown.length >= 2) entry.main.setLatLngs?.(shown.map(toLL));
+    }
+  };
+
+  const cullPoints = () => {
+    const bounds = map.getBounds().pad(0.45);
+    const scenario = activeScenario(useSandbox.getState());
+    for (const feature of scenario.features) {
+      if (feature.kind !== "unit" && feature.kind !== "fort" && feature.kind !== "label") continue;
+      const entry = entries.get(feature.id);
+      const element = entry?.main.getElement?.();
+      if (!element) continue;
+      const shown = isOn(feature.id) || bounds.contains(toLL(feature.at));
+      const display = shown ? "" : "none";
+      if (element.style.display !== display) element.style.display = display;
+    }
+  };
+
   const syncFeatures = () => {
     const state = useSandbox.getState();
     const scenario = activeScenario(state);
@@ -543,6 +634,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     }
     syncRanges();
     scheduleMarks();
+    cullPoints();
   };
 
   const syncRanges = () => {
@@ -1131,6 +1223,9 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
         maxZoom: spec.maxZoom,
         maxNativeZoom: spec.maxNativeZoom,
         attribution: spec.attribution,
+        updateWhenZooming: false,
+        updateWhenIdle: true,
+        keepBuffer: 1,
       }).addTo(map);
       base.bringToBack();
       baseKey = nextBase;
@@ -1144,6 +1239,9 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
           maxZoom: spec.maxZoom,
           maxNativeZoom: spec.maxNativeZoom,
           opacity: 0.92,
+          updateWhenZooming: false,
+          updateWhenIdle: true,
+          keepBuffer: 1,
         }).addTo(map);
       }
       labelKey = nextLabels;
@@ -1162,16 +1260,23 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   const publishView = () => {
     const center = map.getCenter();
     useSandbox.getState().setView([center.lng, center.lat], map.getZoom());
+    markSvg.style.visibility = "";
+    refitVectors();
+    cullPoints();
+    scheduleMarks();
     drawGrid();
     setHud({ zoom: map.getZoom() });
   };
 
-  map.on("move", () => {
-    scheduleMarks();
-    if (activeScenario(useSandbox.getState()).showGrid) drawGrid();
+  map.on("zoomstart", () => {
+    markSvg.style.visibility = "hidden";
   });
   map.on("moveend", publishView);
-  map.on("resize", drawGrid);
+  map.on("resize", () => {
+    refitVectors();
+    scheduleMarks();
+    drawGrid();
+  });
 
   const fly = (lng: number, lat: number, zoom?: number) => {
     map.flyTo([lat, lng], zoom ?? Math.max(map.getZoom(), 12), { duration: reduce ? 0 : 0.55 });

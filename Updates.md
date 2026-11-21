@@ -16,6 +16,7 @@
 12. A route name sits beside the line, not at the geometric center. A range is labeled with the owner's name and “range”. An area of effect is labeled with the work's name.
 13. A defense line can be turned to face the other side.
 14. The overview opens in its own window over the map. The left side chooses factions or units. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
+15. Opening the overview hides the tool bar at the top of the map.
 
 ## 1.0.5 beta
 

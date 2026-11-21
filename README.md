@@ -51,6 +51,7 @@ go build -ldflags="-s -w" -o Project Tulips.exe .
 12. A route name sits beside the line, not at the geometric center. A range is labeled with the owner's name and “range”. An area of effect is labeled with the work's name.
 13. A defense line can be turned to face the other side.
 14. The overview opens in its own window over the map. The left side chooses factions or units. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
+15. Opening the overview hides the tool bar at the top of the map.
 
 ## 1.0.6 beta
 1. The army list adds self-propelled artillery and self-propelled rocket artillery. Fortifications add a special work, which can be given a range or an area of effect. A range is drawn as an open circle. An area of effect is drawn freehand around the icon as an unfilled outline. The air force list adds missiles, which can also be given a range. These shapes sit beneath the icon and cannot be selected.

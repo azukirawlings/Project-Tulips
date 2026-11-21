@@ -574,8 +574,9 @@ export function BrushBar() {
   const closed = useSandbox((state) => state.closedDraw);
   const setClosed = useSandbox((state) => state.setClosedDraw);
   const hint = TOOLS.find((item) => item.id === tool)?.hint;
+  const board = useSandbox((state) => state.board);
   const level = scenario.levels.some((item) => item.id === levelId) ? levelId : scenario.levels[0]?.id ?? "";
-  if (tool === "select") return null;
+  if (tool === "select" || board) return null;
   return (
     <div className="brush">
       <select

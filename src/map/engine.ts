@@ -206,6 +206,28 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     return JSON.stringify([feature, selected, tone, color, look, scenario.iconSize]);
   };
 
+  const pointerDrag = (onMove: (ev: MouseEvent) => void, onUp: (ev: MouseEvent) => void) => {
+    map.dragging.disable();
+    const move = (ev: MouseEvent) => onMove(ev);
+    const up = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      document.body.classList.remove("leaflet-dragging");
+      map.dragging.enable();
+      const state = useSandbox.getState();
+      const view = activeScenario(state).mode === "view";
+      const select = state.tool === "select";
+      for (const entry of entries.values()) {
+        if (entry.mounted === false) continue;
+        setInteractive(entry.main, select || view, select && !view);
+      }
+      onUp(ev);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+  const latLngOf = (ev: MouseEvent) => map.mouseEventToLatLng(ev);
+
   const setInteractive = (layer: LeafletLayer, pointer: boolean, drag: boolean) => {
     const element = layer.getElement?.() ?? layer._path;
     if (element) element.style.pointerEvents = pointer ? "auto" : "none";
@@ -305,34 +327,32 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     if (!feature || feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") return;
     const start = event.latlng;
     let moved = false;
-    map.dragging.disable();
-    const move = (ev: MapEvent) => {
-      const dLng = ev.latlng.lng - start.lng;
-      const dLat = ev.latlng.lat - start.lat;
-      if (Math.hypot(dLng, dLat) > 1e-7) moved = true;
-      const entry = entries.get(id);
-      if (!entry) return;
-      paint(entry, translateFeature(feature, dLng, dLat));
-    };
-    const up = (ev: MapEvent) => {
-      map.off("mousemove", move);
-      map.off("mouseup", up);
-      map.dragging.enable();
-      swallow = true;
-      if (!moved) {
+    pointerDrag(
+      (ev) => {
+        const ll = latLngOf(ev);
+        const dLng = ll.lng - start.lng;
+        const dLat = ll.lat - start.lat;
+        if (Math.hypot(dLng, dLat) > 1e-7) moved = true;
+        const entry = entries.get(id);
+        if (!entry) return;
+        paint(entry, translateFeature(feature, dLng, dLat));
+      },
+      (ev) => {
+        swallow = true;
+        const ll = latLngOf(ev);
+        if (!moved) {
+          useSandbox.getState().select(id);
+          return;
+        }
+        const movedFeature = translateFeature(feature, ll.lng - start.lng, ll.lat - start.lat);
+        const partial =
+          movedFeature.kind === "circle"
+            ? { center: movedFeature.center }
+            : { points: (movedFeature as PathFeature).points };
+        useSandbox.getState().patchFeature(id, partial);
         useSandbox.getState().select(id);
-        return;
-      }
-      const movedFeature = translateFeature(feature, ev.latlng.lng - start.lng, ev.latlng.lat - start.lat);
-      const partial =
-        movedFeature.kind === "circle"
-          ? { center: movedFeature.center }
-          : { points: (movedFeature as PathFeature).points };
-      useSandbox.getState().patchFeature(id, partial);
-      useSandbox.getState().select(id);
-    };
-    map.on("mousemove", move);
-    map.on("mouseup", up);
+      },
+    );
   };
 
   const createEntry = (feature: Feature): Entry => {
@@ -856,50 +876,43 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const feature = activeScenario(useSandbox.getState()).features.find((item) => item.id === id);
     if (!feature || !("points" in feature)) return;
     drawing = true;
-    map.dragging.disable();
     const points = feature.points.map((point) => [...point] as LngLat);
-    const move = (ev: MapEvent) => {
-      points[index] = fromLL(ev.latlng);
-      const entry = entries.get(id);
-      if (entry) paint(entry, { ...feature, points });
-    };
-    const up = (ev: MapEvent) => {
-      map.off("mousemove", move);
-      map.off("mouseup", up);
-      map.dragging.enable();
-      drawing = false;
-      swallow = true;
-      points[index] = fromLL(ev.latlng);
-      useSandbox.getState().patchFeature(id, { points });
-    };
-    map.on("mousemove", move);
-    map.on("mouseup", up);
-    move(event);
+    pointerDrag(
+      (ev) => {
+        points[index] = fromLL(latLngOf(ev));
+        const entry = entries.get(id);
+        if (entry) paint(entry, { ...feature, points });
+      },
+      (ev) => {
+        drawing = false;
+        swallow = true;
+        points[index] = fromLL(latLngOf(ev));
+        useSandbox.getState().patchFeature(id, { points });
+      },
+    );
   };
 
   const dragCircle = (id: string, mode: "center" | "rim", event: MapEvent) => {
     const feature = activeScenario(useSandbox.getState()).features.find((item) => item.id === id);
     if (!feature || feature.kind !== "circle") return;
     drawing = true;
-    map.dragging.disable();
-    const move = (ev: MapEvent) => {
-      const entry = entries.get(id);
-      if (!entry) return;
-      if (mode === "center") paint(entry, { ...feature, center: fromLL(ev.latlng) });
-      else paint(entry, { ...feature, radiusM: Math.max(8, distMeters(feature.center, fromLL(ev.latlng))) });
-    };
-    const up = (ev: MapEvent) => {
-      map.off("mousemove", move);
-      map.off("mouseup", up);
-      map.dragging.enable();
-      drawing = false;
-      swallow = true;
-      if (mode === "center") useSandbox.getState().patchFeature(id, { center: fromLL(ev.latlng) });
-      else useSandbox.getState().patchFeature(id, { radiusM: Math.max(8, distMeters(feature.center, fromLL(ev.latlng))) });
-    };
-    map.on("mousemove", move);
-    map.on("mouseup", up);
-    move(event);
+    pointerDrag(
+      (ev) => {
+        const entry = entries.get(id);
+        if (!entry) return;
+        const at = fromLL(latLngOf(ev));
+        if (mode === "center") paint(entry, { ...feature, center: at });
+        else paint(entry, { ...feature, radiusM: Math.max(8, distMeters(feature.center, at)) });
+      },
+      (ev) => {
+        drawing = false;
+        swallow = true;
+        const at = fromLL(latLngOf(ev));
+        if (mode === "center") useSandbox.getState().patchFeature(id, { center: at });
+        else useSandbox.getState().patchFeature(id, { radiusM: Math.max(8, distMeters(feature.center, at)) });
+      },
+    );
+    void event;
   };
 
   const clearDraft = () => {
@@ -1207,70 +1220,63 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const origin = event.latlng;
     const originPx = map.latLngToContainerPoint(origin);
     let box: { setBounds: (bounds: ReturnType<LeafletNS["latLngBounds"]>) => void; remove: () => void; getBounds: () => { contains: (ll: [number, number]) => boolean } } | null = null;
-    map.dragging.disable();
-    const move = (ev: MapEvent) => {
-      const px = map.latLngToContainerPoint(ev.latlng);
-      if (!box && Math.hypot(px.x - originPx.x, px.y - originPx.y) < 6) return;
-      const bounds = L.latLngBounds(origin, ev.latlng);
-      if (!box) box = L.rectangle(bounds, { color: "#d5dbe3", weight: 1, fillOpacity: 0.12, dashArray: "4 3", interactive: false }).addTo(map);
-      else box.setBounds(bounds);
-    };
-    const up = () => {
-      map.off("mousemove", move);
-      map.off("mouseup", up);
-      map.dragging.enable();
-      if (!box) return;
-      swallow = true;
-      const bounds = box.getBounds();
-      box.remove();
-      const ids = activeScenario(useSandbox.getState())
-        .features.filter((feature) => bounds.contains(toLL(centroidOf(feature))))
-        .map((feature) => feature.id);
-      useSandbox.getState().selectMany(ids);
-    };
-    map.on("mousemove", move);
-    map.on("mouseup", up);
+    pointerDrag(
+      (ev) => {
+        const ll = latLngOf(ev);
+        const px = map.latLngToContainerPoint(ll);
+        if (!box && Math.hypot(px.x - originPx.x, px.y - originPx.y) < 6) return;
+        const bounds = L.latLngBounds(origin, ll);
+        if (!box) box = L.rectangle(bounds, { color: "#d5dbe3", weight: 1, fillOpacity: 0.12, dashArray: "4 3", interactive: false }).addTo(map);
+        else box.setBounds(bounds);
+      },
+      () => {
+        if (!box) return;
+        swallow = true;
+        const bounds = box.getBounds();
+        box.remove();
+        const ids = activeScenario(useSandbox.getState())
+          .features.filter((feature) => bounds.contains(toLL(centroidOf(feature))))
+          .map((feature) => feature.id);
+        useSandbox.getState().selectMany(ids);
+      },
+    );
   });
   map.on("mousedown", (event: MapEvent) => {
     if (useSandbox.getState().tool !== "freehand" || event.originalEvent.button > 0) return;
-    map.dragging.disable();
     draft = [fromLL(event.latlng)];
-    const move = (ev: MapEvent) => {
-      const point = fromLL(ev.latlng);
-      const last = draft[draft.length - 1];
-      if (!last || !nearPx(map, last, point, 3)) {
-        draft.push(point);
-        if (draft.length > 2500) draft.splice(0, draft.length - 2500);
-        showRubber(draft, false);
-      }
-    };
-    const up = () => {
-      map.off("mousemove", move);
-      map.off("mouseup", up);
-      map.dragging.enable();
-      const state = useSandbox.getState();
-      const lat = draft[0]?.[1] ?? 0;
-      const epsilon = (metersPerPixel(lat, map.getZoom()) * 3) / 111320;
-      const points = dedupe(simplifyCap(draft, epsilon, 48));
-      const closed = state.closedDraw;
-      if (points.length >= (closed ? 3 : 2)) {
-        state.addFeature({
-          id: uid("free"),
-          kind: "freehand",
-          name: closed ? "闭合手绘" : "手绘",
-          notes: "",
-          faction: state.faction,
-          hidden: false,
-          points,
-          closed,
-          smooth: state.smoothDraw,
-          dash: "solid",
-        });
-      }
-      clearDraft();
-    };
-    map.on("mousemove", move);
-    map.on("mouseup", up);
+    pointerDrag(
+      (ev) => {
+        const point = fromLL(latLngOf(ev));
+        const last = draft[draft.length - 1];
+        if (!last || !nearPx(map, last, point, 3)) {
+          draft.push(point);
+          if (draft.length > 2500) draft.splice(0, draft.length - 2500);
+          showRubber(draft, false);
+        }
+      },
+      () => {
+        const state = useSandbox.getState();
+        const lat = draft[0]?.[1] ?? 0;
+        const epsilon = (metersPerPixel(lat, map.getZoom()) * 3) / 111320;
+        const points = dedupe(simplifyCap(draft, epsilon, 48));
+        const closed = state.closedDraw;
+        if (points.length >= (closed ? 3 : 2)) {
+          state.addFeature({
+            id: uid("free"),
+            kind: "freehand",
+            name: closed ? "闭合手绘" : "手绘",
+            notes: "",
+            faction: state.faction,
+            hidden: false,
+            points,
+            closed,
+            smooth: state.smoothDraw,
+            dash: "solid",
+          });
+        }
+        clearDraft();
+      },
+    );
   });
   let hudFrame = 0;
   let pendingHud: { lat: number; lng: number } | null = null;

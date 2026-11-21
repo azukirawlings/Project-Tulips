@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.9 beta
+
+1. Editing a line no longer leaves the pointer in the grab state. Units can be selected again afterward.
+
 ## 1.0.8 beta
 
 1. In the select tool, drag with the right button to move the map. The left button still draws a selection box.

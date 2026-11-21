@@ -55,85 +55,62 @@ export function Overview() {
         {trees.map(({ faction, rows }) => {
           const id = `side:${faction.id}`;
           const expanded = open[id] !== false;
+          const color = factionColor(scenario.factions, faction.id);
           return (
-            <section key={faction.id}>
-              <div className={factionOn(faction.id) ? "tree-row on" : "tree-row"}>
+            <section key={faction.id} className="side-block" style={{ ["--side" as string]: color }}>
+              <div className={factionOn(faction.id) ? "side-head on" : "side-head"}>
                 <button type="button" className="twist" aria-label={expanded ? "收起" : "展开"} onClick={() => setOpen((current) => ({ ...current, [id]: !expanded }))}>
                   {expanded ? "−" : "+"}
                 </button>
                 <button type="button" className="tree-name" onClick={() => toggleFaction(faction.id)}>
-                  <i className="swatch" style={{ background: factionColor(scenario.factions, faction.id) }} />
+                  <i className="swatch" style={{ background: color }} />
                   <b>{faction.name || "未命名"}</b>
                 </button>
               </div>
               {expanded ? (
                 rows.length ? (
-                  (() => {
-                    let hideBelow = -1;
-                    return rows.map((row) => {
-                      if (row.kind === "head") {
-                        hideBelow = -1;
+                  <div className="side-body">
+                    {(() => {
+                      let hideBelow = -1;
+                      return rows.map((row) => {
+                        if (row.kind === "head") {
+                          hideBelow = -1;
+                          return (
+                            <p key={`${faction.id}-${row.service}`} className="svc-head">
+                              <span>{SERVICES.find((item) => item.id === row.service)?.label}</span>
+                            </p>
+                          );
+                        }
+                        if (hideBelow >= 0 && row.depth > hideBelow) return null;
+                        const { unit, depth, children } = row;
+                        const unitOpen = open[unit.id] !== false;
+                        hideBelow = children && !unitOpen ? depth : -1;
+                        const levelName = scenario.levels.find((level) => level.id === unit.levelId)?.name ?? "层级";
                         return (
-                          <p key={`${faction.id}-${row.service}`} className="svc-head">
-                            {SERVICES.find((item) => item.id === row.service)?.label}
-                          </p>
-                        );
-                      }
-                      if (hideBelow >= 0 && row.depth > hideBelow) return null;
-                      const { unit, depth, children } = row;
-                      const unitOpen = Boolean(open[unit.id]);
-                      hideBelow = unitOpen ? -1 : depth;
-                      const own = tally([unit]);
-                      const withKids = children ? tally(units.filter((item) => descendantIds(units, unit.id).has(item.id))) : own;
-                      return (
-                        <div key={unit.id}>
-                          <div className={unitOn(unit) ? "tree-row on" : "tree-row"} style={{ paddingLeft: 8 + depth * 14 }}>
-                            <button
-                              type="button"
-                              className="twist"
-                              aria-label={unitOpen ? "收起" : "展开"}
-                              onClick={() => setOpen((current) => ({ ...current, [unit.id]: !unitOpen }))}
-                            >
-                              {unitOpen ? "−" : "+"}
-                            </button>
-                            <button type="button" className="tree-name" onClick={() => toggleUnit(unit)} onDoubleClick={() => focusFeature(unit.id)}>
-                              <b>{unit.name}</b>
-                              <small>{scenario.levels.find((level) => level.id === unit.levelId)?.name ?? "层级"}</small>
-                            </button>
-                          </div>
-                          {unitOpen ? (
-                            <ul className="ov-rows nest" style={{ marginLeft: 28 + depth * 14 }}>
-                              <li>
-                                <span>本级人数</span>
-                                <b>
-                                  {own.now}/{own.orig}
-                                </b>
-                                <small>损 {own.loss}</small>
-                              </li>
+                          <div key={unit.id} className="limb" style={{ marginLeft: depth * 16 }}>
+                            <div className={unitOn(unit) ? "tree-row on" : "tree-row"}>
                               {children ? (
-                                <li>
-                                  <span>含下级人数</span>
-                                  <b>
-                                    {withKids.now}/{withKids.orig}
-                                  </b>
-                                  <small>损 {withKids.loss}</small>
-                                </li>
-                              ) : null}
-                              {own.rows.map((item) => (
-                                <li key={item.id}>
-                                  <span>{item.label}</span>
-                                  <b>
-                                    {item.now}/{item.orig}
-                                  </b>
-                                  <small>{item.loss > 0 ? `损 ${item.loss}` : "无损"}</small>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </div>
-                      );
-                    });
-                  })()
+                                <button
+                                  type="button"
+                                  className="twist"
+                                  aria-label={unitOpen ? "收起下级" : "展开下级"}
+                                  onClick={() => setOpen((current) => ({ ...current, [unit.id]: !unitOpen }))}
+                                >
+                                  {unitOpen ? "−" : "+"}
+                                </button>
+                              ) : (
+                                <span className="twist ghost" />
+                              )}
+                              <button type="button" className="tree-name" onClick={() => toggleUnit(unit)} onDoubleClick={() => focusFeature(unit.id)}>
+                                <em className="rank">{levelName}</em>
+                                <b>{unit.name}</b>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 ) : (
                   <p className="empty">这个阵营还没有部队。</p>
                 )

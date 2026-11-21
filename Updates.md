@@ -2,22 +2,14 @@
 
 ## 1.0.7 beta
 
-1. Panning and zooming no longer rebuild the sandbox on every step. The view is written back after the gesture settles.
-2. A range ring that fills the screen, or lies completely outside it, is not drawn. At high zoom only the visible arc is stroked.
-3. Icons outside the view are taken off the map until they return. Icons still in view follow the zoom.
-4. Command links are resolved directly. A graphic that has not changed is not measured again on refresh.
-5. In the select tool, drag with the right button to move the map. The left button still draws a selection box.
-6. The graphics list is grouped. Each group can be opened or closed.
-7. Details for the selected graphic open in a card on the map. The card can be closed. Edit mode changes the graphic there. View mode shows the stored description and strength.
-8. The overview is a tree of factions and the units under them. Open a unit to see strength on hand, authorized strength, and losses. Click a faction to include it in the total, and click it again to remove it. Units can be combined only when they belong to the same faction. A unit from another faction replaces the previous choice.
-9. Unit icons are rectangular and slightly larger than fortification icons.
-10. Editing a line no longer leaves the pointer in the grab state. Units can be selected again afterward.
-11. Unit symbols sit inside the rectangular plate, and the plate has a black border.
-12. A route name sits beside the line, not at the geometric center. A range is labeled with the owner's name and “range”. An area of effect is labeled with the work's name.
-13. A defense line can be turned to face the other side.
-14. The overview opens in its own window over the map. The left side chooses factions or units. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
-15. Opening the overview hides the tool bar at the top of the map.
-16. Settings adds a compact mode. For each service, only the highest echelon present on the map keeps its name. Strongpoints and special works keep theirs. The selected unit still shows its name.
+1. Panning and zooming stay smooth. A range ring outside the view, or one that fills the screen, is not drawn in full. Icons outside the view are taken off the map until they return.
+2. In the select tool, drag with the right button to move the map. The left button still draws a selection box.
+3. The graphics list is grouped. Each group can be opened or closed.
+4. Details for the selected graphic open in a card on the map. Edit mode changes the graphic there. View mode shows the stored description and strength.
+5. The overview opens in its own window. Each faction is a separate block. Services are divided inside it, and each unit is marked with its echelon. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
+6. Unit icons are rectangular and slightly larger than fortification icons. The symbol sits inside the plate, and the plate has a black border.
+7. A route name sits beside the line. A range is labeled with the owner's name and range. An area of effect is labeled with the work's name. A defense line can be turned to face the other side.
+8. Settings adds a compact mode. For each service, only the highest echelon present on the map keeps its name. Strongpoints and special works keep theirs. The selected unit still shows its name.
 
 ## 1.0.5 beta
 

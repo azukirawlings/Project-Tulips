@@ -35,6 +35,13 @@ go build -ldflags="-s -w" -o Project Tulips.exe .
 
 # Changelog
 
+## 1.0.7 beta
+
+1. Panning and zooming no longer rebuild the sandbox on every step. The view is written back after the gesture settles.
+2. A range ring that fills the screen, or lies completely outside it, is not drawn. At high zoom only the visible arc is stroked.
+3. Icons outside the view are taken off the map until they return. Icons still in view follow the zoom.
+4. Command links are resolved directly. A graphic that has not changed is not measured again on refresh.
+
 ## 1.0.6 beta
 1. The army list adds self-propelled artillery and self-propelled rocket artillery. Fortifications add a special work, which can be given a range or an area of effect. A range is drawn as an open circle. An area of effect is drawn freehand around the icon as an unfilled outline. The air force list adds missiles, which can also be given a range. These shapes sit beneath the icon and cannot be selected.
 2. Unit icons gain a backing plate so they remain readable on imagery. The plate and the outline can be set for each faction. If they are left unset, they follow the basemap.

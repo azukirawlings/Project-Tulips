@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.7 beta
+
+1. Panning and zooming no longer rebuild the sandbox on every step. The view is written back after the gesture settles.
+2. A range ring that fills the screen, or lies completely outside it, is not drawn. At high zoom only the visible arc is stroked.
+3. Icons outside the view are taken off the map until they return. Icons still in view follow the zoom.
+4. Command links are resolved directly. A graphic that has not changed is not measured again on refresh.
+
 ## 1.0.5 beta
 
 1. Two people can work on the same sandbox. Both enter the same room code. No address is required. Closing the collaboration panel does not disconnect.

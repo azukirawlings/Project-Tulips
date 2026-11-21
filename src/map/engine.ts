@@ -24,9 +24,23 @@ import type { Feature, LngLat, PathFeature, Tool, UnitFeature } from "./types";
 import { BASEMAPS, FORT_TYPES, GEAR, HILLSHADE_URL, UNIT_TYPES, defaultHeadcount, factionColor, factionTone, groupOf, iconColors, iconScale, labelOf, mixHex, uid } from "./types";
 
 type LeafletNS = typeof import("leaflet");
-type Entry = { geom: string; style: string; hit?: string; main: LeafletLayer; head?: LeafletLayer; label?: LeafletLayer; marks?: LeafletLayer };
+type Entry = {
+  geom: string;
+  style: string;
+  hit?: string;
+  featureRef?: Feature;
+  selected?: boolean;
+  envKey?: string;
+  mounted?: boolean;
+  labelMounted?: boolean;
+  main: LeafletLayer;
+  head?: LeafletLayer;
+  label?: LeafletLayer;
+  marks?: LeafletLayer;
+};
 type LeafletLayer = {
   remove: () => void;
+  addTo?: (map: unknown) => void;
   getElement?: () => HTMLElement | undefined;
   _path?: SVGElement;
   setStyle?: (style: Record<string, unknown>) => void;
@@ -108,8 +122,9 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     keyboard: false,
     doubleClickZoom: true,
     preferCanvas: true,
-    markerZoomAnimation: false,
+    markerZoomAnimation: !reduce,
     fadeAnimation: false,
+    wheelDebounceTime: 60,
     renderer: L.canvas({ padding: 0.15, tolerance: 6 }),
   });
   map.attributionControl.setPrefix(false);
@@ -340,7 +355,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       }).addTo(map);
       tintMarker(marker as unknown as LeafletLayer, feature);
       bindSelect(marker as unknown as LeafletLayer, feature.id, true);
-      return { geom: "", style: "", main: marker as unknown as LeafletLayer };
+      return { geom: "", style: "", mounted: true, main: marker as unknown as LeafletLayer };
     }
     let main: LeafletLayer;
     let head: LeafletLayer | undefined;
@@ -365,7 +380,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       zIndexOffset: -40,
     }).addTo(map);
     tintMarker(label as unknown as LeafletLayer, feature);
-    return { geom: "", style: "", main, head, label: label as unknown as LeafletLayer };
+    return { geom: "", style: "", labelMounted: true, main, head, label: label as unknown as LeafletLayer };
   };
 
   const circleEdge = (center: LngLat, radiusM: number): LngLat[] => {
@@ -394,13 +409,14 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const maxX = size.x + pad;
     const maxY = size.y + pad;
     const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
+    const box = padBox(0.35);
     const groups = new Map<string, string>();
     for (const feature of scenario.features) {
       if (feature.hidden || !scenario.groups[groupOf(feature)]) continue;
       const dash = "dash" in feature ? feature.dash : "solid";
       if (dash !== "cross" && dash !== "defense") continue;
       const raw = feature.kind === "circle" ? circleEdge(feature.center, feature.radiusM) : "points" in feature ? feature.points : [];
-      if (raw.length < 2 || !lineHits(raw)) continue;
+      if (raw.length < 2 || !lineHits(raw, box)) continue;
       const source = feature.kind !== "circle" && "smooth" in feature && feature.smooth ? pathDisplay(feature as PathFeature) : raw;
       const mpp = Math.max(0.01, metersPerPixel(map.getCenter().lat, map.getZoom()));
       let travel = 0;
@@ -410,7 +426,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
         const a = source[i - 1]!;
         const b = source[i]!;
         const meters = distMeters(a, b);
-        if (!lineHits([a, b])) {
+        if (!lineHits([a, b], box)) {
           travel += meters / mpp;
           continue;
         }
@@ -516,20 +532,20 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     return { ax: x1 + t0 * dx, ay: y1 + t0 * dy, bx: x1 + t1 * dx, by: y1 + t1 * dy };
   };
 
-  const lineHits = (points: LngLat[]) => {
-    const bounds = map.getBounds().pad(0.35);
-    const west = bounds.getWest();
-    const east = bounds.getEast();
-    const south = bounds.getSouth();
-    const north = bounds.getNorth();
+  const padBox = (pad: number) => {
+    const bounds = map.getBounds().pad(pad);
+    return { west: bounds.getWest(), east: bounds.getEast(), south: bounds.getSouth(), north: bounds.getNorth() };
+  };
+
+  const lineHits = (points: LngLat[], box = padBox(0.35)) => {
     for (let i = 1; i < points.length; i += 1) {
       const a = points[i - 1]!;
       const b = points[i]!;
       if (
-        Math.max(a[0], b[0]) >= west &&
-        Math.min(a[0], b[0]) <= east &&
-        Math.max(a[1], b[1]) >= south &&
-        Math.min(a[1], b[1]) <= north
+        Math.max(a[0], b[0]) >= box.west &&
+        Math.min(a[0], b[0]) <= box.east &&
+        Math.max(a[1], b[1]) >= box.south &&
+        Math.min(a[1], b[1]) <= box.north
       ) {
         return true;
       }
@@ -573,6 +589,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const scenario = activeScenario(useSandbox.getState());
     for (const feature of scenario.features) {
       if (feature.kind !== "curve" && feature.kind !== "freehand" && feature.kind !== "polygon") continue;
+      if (!lineHits(feature.points)) continue;
       const entry = entries.get(feature.id);
       if (!entry) continue;
       const shown = screenPath(pathDisplay(feature));
@@ -581,16 +598,36 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   };
 
   const cullPoints = () => {
-    const bounds = map.getBounds().pad(0.45);
-    const scenario = activeScenario(useSandbox.getState());
+    const bounds = map.getBounds().pad(0.35);
+    const state = useSandbox.getState();
+    const scenario = activeScenario(state);
+    const view = scenario.mode === "view";
+    const select = state.tool === "select";
     for (const feature of scenario.features) {
-      if (feature.kind !== "unit" && feature.kind !== "fort" && feature.kind !== "label") continue;
       const entry = entries.get(feature.id);
-      const element = entry?.main.getElement?.();
-      if (!element) continue;
-      const shown = isOn(feature.id) || bounds.contains(toLL(feature.at));
-      const display = shown ? "" : "none";
-      if (element.style.display !== display) element.style.display = display;
+      if (!entry) continue;
+      if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
+        const shown = isOn(feature.id) || bounds.contains(toLL(feature.at));
+        if (shown && entry.mounted === false) {
+          entry.main.addTo?.(map);
+          tintMarker(entry.main, feature);
+          setInteractive(entry.main, select || view, select && !view);
+          entry.mounted = true;
+        } else if (!shown && entry.mounted !== false) {
+          entry.main.remove();
+          entry.mounted = false;
+        }
+      } else if (entry.label) {
+        const shown = isOn(feature.id) || bounds.contains(toLL(centroidOf(feature)));
+        if (shown && entry.labelMounted === false) {
+          entry.label.addTo?.(map);
+          tintMarker(entry.label, feature);
+          entry.labelMounted = true;
+        } else if (!shown && entry.labelMounted !== false) {
+          entry.label.remove();
+          entry.labelMounted = false;
+        }
+      }
     }
   };
 
@@ -598,25 +635,37 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const state = useSandbox.getState();
     const scenario = activeScenario(state);
     const visible = new Set<string>();
+    const envKey = `${scenario.basemap}|${scenario.iconSize}|${scenario.factions
+      .map((item) => `${item.id}:${item.color ?? ""}:${item.plate ?? ""}:${item.ink ?? ""}`)
+      .join(",")}`;
     for (const feature of scenario.features) {
       if (feature.hidden || !scenario.groups[groupOf(feature)]) continue;
       visible.add(feature.id);
-      const geom = geomKey(feature);
-      const style = styleKey(feature, isOn(feature.id));
+      const selected = isOn(feature.id);
       let entry = entries.get(feature.id);
       if (!entry) {
         entry = createEntry(feature);
         entries.set(feature.id, entry);
       }
-      if (entry.geom !== geom || entry.style !== style) paint(entry, feature);
-      entry.geom = geom;
-      entry.style = style;
+      if (entry.featureRef !== feature || entry.selected !== selected || entry.envKey !== envKey) {
+        const geom = geomKey(feature);
+        const style = styleKey(feature, selected);
+        if (entry.geom !== geom || entry.style !== style) paint(entry, feature);
+        entry.geom = geom;
+        entry.style = style;
+        entry.featureRef = feature;
+        entry.selected = selected;
+        entry.envKey = envKey;
+      }
       const view = scenario.mode === "view";
       const select = state.tool === "select";
       const hit = `${select}|${view}`;
       if (entry.hit !== hit) {
-        setInteractive(entry.main, select || view, select && !view);
-        if (entry.head) setInteractive(entry.head, select || view, false);
+        const point = feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label";
+        if (!point || entry.mounted !== false) {
+          setInteractive(entry.main, select || view, select && !view);
+          if (entry.head) setInteractive(entry.head, select || view, false);
+        }
         entry.hit = hit;
       }
       if (entry.marks) {
@@ -637,6 +686,56 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     cullPoints();
   };
 
+  const addClippedRangeCircle = (center: LngLat, radiusM: number, stroke: Record<string, unknown>) => {
+    const mpp = Math.max(1e-4, metersPerPixel(center[1], map.getZoom()));
+    const radiusPx = radiusM / mpp;
+    const size = map.getSize();
+    const pad = 64;
+    const minX = -pad;
+    const minY = -pad;
+    const maxX = size.x + pad;
+    const maxY = size.y + pad;
+    const c = map.latLngToContainerPoint(toLL(center));
+    const qx = Math.max(minX, Math.min(c.x, maxX));
+    const qy = Math.max(minY, Math.min(c.y, maxY));
+    if (Math.hypot(c.x - qx, c.y - qy) > radiusPx) return;
+    const maxDist = Math.max(
+      Math.hypot(c.x - minX, c.y - minY),
+      Math.hypot(c.x - maxX, c.y - minY),
+      Math.hypot(c.x - minX, c.y - maxY),
+      Math.hypot(c.x - maxX, c.y - maxY),
+    );
+    if (maxDist < radiusPx) return;
+    if (radiusPx <= 1200) {
+      rangeLayer.addLayer(L.circle(toLL(center), { ...stroke, radius: radiusM }));
+      return;
+    }
+    const cxView = size.x * 0.5;
+    const cyView = size.y * 0.5;
+    const distToView = Math.hypot(cxView - c.x, cyView - c.y);
+    const viewHalfDiag = Math.hypot(size.x * 0.5 + pad, size.y * 0.5 + pad);
+    const centerAngle = Math.atan2(cyView - c.y, cxView - c.x);
+    const span =
+      distToView <= viewHalfDiag
+        ? Math.PI
+        : Math.min(Math.PI, Math.asin(Math.min(1, viewHalfDiag / Math.max(1, distToView))) + 0.08);
+    const step = Math.max(0.002, Math.min(0.05, 16 / radiusPx));
+    let seg: [number, number][] = [];
+    const flush = () => {
+      if (seg.length >= 2) rangeLayer.addLayer(L.polyline(seg, stroke));
+      seg = [];
+    };
+    for (let angle = centerAngle - span; angle <= centerAngle + span + step; angle += step) {
+      const px = c.x + Math.cos(angle) * radiusPx;
+      const py = c.y + Math.sin(angle) * radiusPx;
+      if (px >= minX - 120 && px <= maxX + 120 && py >= minY - 120 && py <= maxY + 120) {
+        const ll = map.containerPointToLatLng([px, py]);
+        seg.push([ll.lat, ll.lng]);
+      } else flush();
+    }
+    flush();
+  };
+
   const syncRanges = () => {
     rangeLayer.clearLayers();
     const scenario = activeScenario(useSandbox.getState());
@@ -648,7 +747,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       const ranged =
         (feature.kind === "unit" && feature.unitType === "missile") || (feature.kind === "fort" && feature.fortType === "special");
       if (ranged && feature.rangeM && feature.rangeM >= 8 && "at" in feature) {
-        rangeLayer.addLayer(L.circle(toLL(feature.at), { ...stroke, radius: feature.rangeM }));
+        addClippedRangeCircle(feature.at, feature.rangeM, stroke);
       }
       if (feature.kind === "fort" && feature.fortType === "special" && feature.reach && feature.reach.length >= 3) {
         const ring = pathDisplay({
@@ -1152,10 +1251,19 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     map.on("mousemove", move);
     map.on("mouseup", up);
   });
+  let hudFrame = 0;
+  let pendingHud: { lat: number; lng: number } | null = null;
   map.on("mousemove", (event: MapEvent) => {
-    const lat = Math.round(event.latlng.lat * 1e5) / 1e5;
-    const lng = Math.round(event.latlng.lng * 1e5) / 1e5;
-    setHud({ lat, lng, zoom: map.getZoom() });
+    pendingHud = {
+      lat: Math.round(event.latlng.lat * 1e5) / 1e5,
+      lng: Math.round(event.latlng.lng * 1e5) / 1e5,
+    };
+    if (!hudFrame) {
+      hudFrame = requestAnimationFrame(() => {
+        hudFrame = 0;
+        if (pendingHud) setHud({ ...pendingHud, zoom: map.getZoom() });
+      });
+    }
     if (circleCenter && useSandbox.getState().tool === "circle") {
       showRubber([circleCenter], false, distMeters(circleCenter, fromLL(event.latlng)));
     }
@@ -1257,15 +1365,26 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
 
   const stateTool = (): Tool => useSandbox.getState().tool;
 
+  let syncingView = false;
+  let viewTimer = 0;
   const publishView = () => {
-    const center = map.getCenter();
-    useSandbox.getState().setView([center.lng, center.lat], map.getZoom());
     markSvg.style.visibility = "";
     refitVectors();
     cullPoints();
+    syncRanges();
     scheduleMarks();
     drawGrid();
     setHud({ zoom: map.getZoom() });
+    window.clearTimeout(viewTimer);
+    viewTimer = window.setTimeout(() => {
+      const center = map.getCenter();
+      syncingView = true;
+      try {
+        useSandbox.getState().setView([center.lng, center.lat], map.getZoom());
+      } finally {
+        syncingView = false;
+      }
+    }, 120);
   };
 
   map.on("zoomstart", () => {
@@ -1306,9 +1425,10 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
     if (scenario.showLinks) {
       const units = scenario.features.filter((feature): feature is UnitFeature => feature.kind === "unit" && !feature.hidden);
+      const unitById = new Map(units.map((unit) => [unit.id, unit]));
       for (const unit of units) {
         if (!unit.parentId) continue;
-        const parent = units.find((item) => item.id === unit.parentId);
+        const parent = unitById.get(unit.parentId);
         if (!parent) continue;
         L.polyline([toLL(parent.at), toLL(unit.at)], {
           color: sideColor(unit.faction, tone),
@@ -1439,6 +1559,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   syncOverlay();
 
   const unsub = useSandbox.subscribe((state, prev) => {
+    if (syncingView) return;
     if (state.tool !== prev.tool || state.activeId !== prev.activeId) clearDraft();
     if (state.focus && state.focus.nonce !== seenNonce) {
       seenNonce = state.focus.nonce;
@@ -1561,6 +1682,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
 
   return () => {
     unsub();
+    window.clearTimeout(viewTimer);
     window.removeEventListener("keydown", onKey);
     observer.disconnect();
     bindMap(null);

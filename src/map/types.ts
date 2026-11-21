@@ -28,8 +28,6 @@ export type UnitType =
   | "logistics"
   | "hq"
   | "special"
-  | "spg"
-  | "mlrs"
   | "missile";
 export type GearId =
   | "vehicle"
@@ -39,6 +37,9 @@ export type GearId =
   | "amphib"
   | "lightTank"
   | "mbt"
+  | "spg"
+  | "mlrs"
+  | "spaag"
   | "transHeli"
   | "attackHeli"
   | "smallBoat"
@@ -180,6 +181,9 @@ export const GEAR: { id: GearId; service: ServiceId; label: string }[] = [
   { id: "amphib", service: "land", label: "两栖战车" },
   { id: "lightTank", service: "land", label: "轻型坦克" },
   { id: "mbt", service: "land", label: "主战坦克" },
+  { id: "spg", service: "land", label: "自行火炮" },
+  { id: "mlrs", service: "land", label: "自走火箭炮" },
+  { id: "spaag", service: "land", label: "自行防空武器" },
   { id: "transHeli", service: "land", label: "运输直升机" },
   { id: "attackHeli", service: "land", label: "武装直升机" },
   { id: "smallBoat", service: "sea", label: "小型船只" },
@@ -301,8 +305,6 @@ export const LAND_UNITS: { id: UnitType; label: string }[] = [
   { id: "armor", label: "装甲" },
   { id: "mech", label: "机械化" },
   { id: "artillery", label: "炮兵" },
-  { id: "spg", label: "自走火炮" },
-  { id: "mlrs", label: "自走火箭炮" },
   { id: "recon", label: "侦察" },
   { id: "air", label: "航空" },
   { id: "airDefense", label: "防空" },

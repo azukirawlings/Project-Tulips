@@ -34,8 +34,6 @@ const UNIT_ICONS: Record<UnitType, string> = {
   logistics: `<rect x="13" y="14" width="10" height="9"/><path d="M13 17.5 H23"/>`,
   hq: `<path d="M15.5 24 V12.5 H23.5 L21 15.4 L23.5 18.2 H15.5"/>`,
   special: `<path d="M18 12.2 L19.4 16.2 H23.6 L20.2 18.6 L21.5 22.6 L18 20.2 L14.5 22.6 L15.8 18.6 L12.4 16.2 H16.6 Z"/>`,
-  spg: `<rect x="12" y="16.4" width="12" height="5.2"/><path d="M17.2 16.4 L21.8 10.6"/>`,
-  mlrs: `<rect x="12" y="17.2" width="12" height="4.8"/><path d="M14.2 17.2 L16.2 11 M18 17.2 L20 11 M21.8 17.2 L23.8 11"/>`,
   missile: `<path d="M18 7.5 L21.2 16 L18 14.2 L14.8 16 Z M18 14.2 V24 M15.2 21.5 H20.8"/>`,
 };
 

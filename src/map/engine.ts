@@ -18,9 +18,9 @@ import {
 } from "./geo";
 import { bindMap, setHud } from "./hud";
 import { areaMarker, pointMarker } from "./symbols";
-import { levelRank } from "./order";
+import { levelRank, seniorIds } from "./order";
 import { activeScenario, useSandbox } from "./store";
-import type { Feature, LngLat, PathFeature, Tool, UnitFeature } from "./types";
+import type { Feature, LngLat, PathFeature, Scenario, Tool, UnitFeature } from "./types";
 import { BASEMAPS, FORT_TYPES, GEAR, HILLSHADE_URL, UNIT_TYPES, defaultHeadcount, factionColor, factionTone, groupOf, iconColors, iconScale, labelOf, mixHex, uid } from "./types";
 
 type LeafletNS = typeof import("leaflet");
@@ -88,6 +88,32 @@ function iconLook(feature: Feature): { plate: string; ink: string } {
   const auto = iconColors(color, scenario.basemap);
   const faction = scenario.factions.find((item) => item.id === feature.faction);
   return { plate: faction?.plate || auto.plate, ink: faction?.ink || auto.ink };
+}
+
+let seniorFeatures: Feature[] | null = null;
+let seniorLevels: Scenario["levels"] | null = null;
+let seniorGroups = "";
+let seniorCached = new Set<string>();
+
+function seniorSet(scenario: Scenario): Set<string> {
+  const groups = JSON.stringify(scenario.groups);
+  if (seniorFeatures === scenario.features && seniorLevels === scenario.levels && seniorGroups === groups) return seniorCached;
+  const visible = scenario.features.filter(
+    (feature): feature is UnitFeature => feature.kind === "unit" && !feature.hidden && scenario.groups[groupOf(feature)] !== false,
+  );
+  seniorCached = seniorIds(visible, scenario.levels);
+  seniorFeatures = scenario.features;
+  seniorLevels = scenario.levels;
+  seniorGroups = groups;
+  return seniorCached;
+}
+
+function pointNamed(feature: Feature, selected: boolean): boolean {
+  const scenario = activeScenario(useSandbox.getState());
+  if (!scenario.briefLabels || selected) return true;
+  if (feature.kind === "fort") return feature.fortType === "strongpoint" || feature.fortType === "special";
+  if (feature.kind !== "unit") return true;
+  return seniorSet(scenario).has(feature.id);
 }
 
 function escText(value: string): string {
@@ -203,7 +229,8 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
     const color = factionColor(scenario.factions, feature.faction);
     const look = iconLook(feature);
-    return JSON.stringify([feature, selected, tone, color, look, scenario.iconSize]);
+    const senior = scenario.briefLabels ? [...seniorSet(scenario)].sort().join(",") : "";
+    return JSON.stringify([feature, selected, tone, color, look, scenario.iconSize, Boolean(scenario.briefLabels), senior]);
   };
 
   const pointerDrag = (onMove: (ev: MouseEvent) => void, onUp: (ev: MouseEvent) => void) => {
@@ -295,7 +322,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const style = styleFor(feature, selected);
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
       const meta = markerMeta(feature);
-      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale, iconLook(feature));
+      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale, iconLook(feature), pointNamed(feature, selected));
       entry.main.setIcon?.(
         L.divIcon({
           className: spec.className,
@@ -405,7 +432,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const style = styleFor(feature, selected);
     if (feature.kind === "unit" || feature.kind === "fort" || feature.kind === "label") {
       const meta = markerMeta(feature);
-      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale, iconLook(feature));
+      const spec = pointMarker(feature, selected, meta.tone, meta.level, meta.scale, iconLook(feature), pointNamed(feature, selected));
       const marker = L.marker(toLL(feature.at), {
         icon: L.divIcon({
           className: spec.className,

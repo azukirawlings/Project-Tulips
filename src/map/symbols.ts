@@ -66,6 +66,7 @@ export function pointMarker(
   level = "",
   scale = 1,
   colors?: { plate: string; ink: string },
+  named = true,
 ): {
   className: string;
   html: string;
@@ -88,7 +89,7 @@ export function pointMarker(
     const ink = colors?.ink ?? "currentColor";
     return {
       className: `mk fort side-${tone}${selectedClass}`,
-      html: `${glyph(FORT_ICONS[feature.fortType], feature.heading, size, plate, ink, "fort")}<span class="cap" style="top:${size + 4}px">${esc(feature.name)}</span>`,
+      html: `${glyph(FORT_ICONS[feature.fortType], feature.heading, size, plate, ink, "fort")}${named ? `<span class="cap" style="top:${size + 4}px">${esc(feature.name)}</span>` : ""}`,
       size: [size, size],
       anchor: [Math.round(size / 2), Math.round(size / 2)],
     };
@@ -116,7 +117,7 @@ export function pointMarker(
       plate,
       ink,
       "unit",
-    )}<span class="hp" style="top:${size}px"><i style="width:${Math.max(0, Math.min(100, ratio * 100))}%"></i></span><span class="cap" style="top:${size + 6}px"><b>${esc(feature.name)}</b>${call}${figure}</span>`,
+    )}<span class="hp" style="top:${size}px"><i style="width:${Math.max(0, Math.min(100, ratio * 100))}%"></i></span>${named ? `<span class="cap" style="top:${size + 6}px"><b>${esc(feature.name)}</b>${call}${figure}</span>` : ""}`,
     size: [size, size],
     anchor: [Math.round(size / 2), Math.round(size / 2)],
   };

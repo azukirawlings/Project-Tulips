@@ -17,6 +17,7 @@
 13. A defense line can be turned to face the other side.
 14. The overview opens in its own window over the map. The left side chooses factions or units. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
 15. Opening the overview hides the tool bar at the top of the map.
+16. Settings adds a compact mode. For each service, only the highest echelon present on the map keeps its name. Strongpoints and special works keep theirs. The selected unit still shows its name.
 
 ## 1.0.5 beta
 

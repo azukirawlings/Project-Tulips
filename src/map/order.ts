@@ -68,6 +68,20 @@ export function levelRank(levels: LevelDef[], id: string): number {
   return index < 0 ? levels.length : index;
 }
 
+export function seniorIds(units: UnitFeature[], levels: LevelDef[]): Set<string> {
+  const best = new Map<string, number>();
+  for (const unit of units) {
+    const rank = levelRank(levels, unit.levelId);
+    const prev = best.get(unit.service);
+    if (prev === undefined || rank < prev) best.set(unit.service, rank);
+  }
+  const ids = new Set<string>();
+  for (const unit of units) {
+    if (levelRank(levels, unit.levelId) === best.get(unit.service)) ids.add(unit.id);
+  }
+  return ids;
+}
+
 export function parentChoices(units: UnitFeature[], levels: LevelDef[], unit: UnitFeature): UnitFeature[] {
   const blocked = descendantIds(units, unit.id);
   const rank = levelRank(levels, unit.levelId);

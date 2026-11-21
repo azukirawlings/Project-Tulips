@@ -255,6 +255,11 @@ function MapMenu() {
         </div>
       </div>
       <label className="check">
+        <input type="checkbox" checked={Boolean(scenario.briefLabels)} onChange={() => patch({ briefLabels: !scenario.briefLabels })} />
+        简洁模式
+      </label>
+      <p className="hint">每个军种只留下地图上最高一级的名字，另外保留据点和特殊工事。点中的单位仍显示名字。</p>
+      <label className="check">
         <input type="checkbox" checked={scenario.showLabels} onChange={() => patch({ showLabels: !scenario.showLabels })} />
         地名标注
       </label>

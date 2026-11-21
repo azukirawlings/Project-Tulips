@@ -308,6 +308,7 @@ export function normalizeScenario(raw: unknown): Scenario | null {
     showGrid: Boolean(item.showGrid),
     showRelief: Boolean(item.showRelief),
     showLinks: Boolean(item.showLinks),
+    briefLabels: Boolean(item.briefLabels),
     iconSize: item.iconSize === "s" || item.iconSize === "l" ? item.iconSize : "m",
     mode: item.mode === "view" ? "view" : "edit",
     groups,

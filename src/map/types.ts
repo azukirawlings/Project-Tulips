@@ -144,6 +144,7 @@ export type Scenario = {
   showGrid: boolean;
   showRelief: boolean;
   showLinks: boolean;
+  briefLabels: boolean;
   iconSize: "s" | "m" | "l";
   mode: "edit" | "view";
   groups: Record<GroupKey, boolean>;

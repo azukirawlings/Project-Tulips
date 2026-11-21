@@ -276,7 +276,7 @@ export const useSandbox = create<SandboxState>()(
         const state = get();
         const scenario = currentOf(state);
         const viewOnly = Object.keys(partial).every((key) =>
-          ["basemap", "mode", "showLabels", "showGrid", "showRelief", "showLinks", "iconSize", "groups", "center", "zoom", "activeMomentId", "compareIds"].includes(key),
+          ["basemap", "mode", "showLabels", "showGrid", "showRelief", "showLinks", "briefLabels", "iconSize", "groups", "center", "zoom", "activeMomentId", "compareIds"].includes(key),
         );
         if (!viewOnly && !collabWriteOk()) return;
         set({

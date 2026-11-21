@@ -24,7 +24,7 @@ import type { Feature, LngLat, PathFeature, Tool, UnitFeature } from "./types";
 import { BASEMAPS, FORT_TYPES, GEAR, HILLSHADE_URL, UNIT_TYPES, defaultHeadcount, factionColor, factionTone, groupOf, iconColors, iconScale, labelOf, mixHex, uid } from "./types";
 
 type LeafletNS = typeof import("leaflet");
-type Entry = { geom: string; style: string; main: LeafletLayer; head?: LeafletLayer; label?: LeafletLayer; marks?: LeafletLayer };
+type Entry = { geom: string; style: string; hit?: string; main: LeafletLayer; head?: LeafletLayer; label?: LeafletLayer; marks?: LeafletLayer };
 type LeafletLayer = {
   remove: () => void;
   getElement?: () => HTMLElement | undefined;
@@ -128,6 +128,10 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.classList.add("grid-overlay");
   map.getContainer().appendChild(svg);
+  const markSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  markSvg.classList.add("mark-overlay");
+  map.getContainer().appendChild(markSvg);
+  const markNodes = new Map<string, SVGPathElement>();
 
   let base = L.tileLayer("", { attribution: "" });
   let labels = L.tileLayer("", { pane: "labels" });
@@ -180,7 +184,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
     const color = factionColor(scenario.factions, feature.faction);
     const look = iconLook(feature);
-    return JSON.stringify([feature, selected, tone, color, look, scenario.iconSize, Math.round(map.getZoom())]);
+    return JSON.stringify([feature, selected, tone, color, look, scenario.iconSize]);
   };
 
   const setInteractive = (layer: LeafletLayer, pointer: boolean, drag: boolean) => {
@@ -244,7 +248,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       entry.label.setZIndexOffset?.(selected ? 700 : -40);
       tintMarker(entry.label, feature);
     }
-    syncMarks(entry, feature);
+    scheduleMarks();
   };
 
   const bindSelect = (layer: LeafletLayer, id: string, draggable: boolean) => {
@@ -360,75 +364,143 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     return { geom: "", style: "", main, head, label: label as unknown as LeafletLayer };
   };
 
-  const syncMarks = (entry: Entry, feature: Feature) => {
-    const dash = "dash" in feature ? feature.dash : "solid";
-    if (dash !== "cross" && dash !== "defense") {
-      entry.marks?.remove();
-      entry.marks = undefined;
-      return;
-    }
-    const points = feature.kind === "circle" ? circleEdge(feature.center, feature.radiusM) : "points" in feature ? pathDisplay(feature) : [];
-    const latlngs = motifs(points, dash);
-    const color = sideColor(feature.faction, BASEMAPS.find((item) => item.id === activeScenario(useSandbox.getState()).basemap)?.tone ?? "dark");
-    if (!entry.marks) {
-      entry.marks = L.polyline(latlngs, { color, weight: 1.35, interactive: false, lineCap: "butt" }).addTo(map) as unknown as LeafletLayer;
-      return;
-    }
-    entry.marks.setStyle?.({ color, weight: 1.35 });
-    entry.marks.setLatLngs?.(latlngs);
-  };
-
   const circleEdge = (center: LngLat, radiusM: number): LngLat[] => {
     const points: LngLat[] = [];
     for (let i = 0; i <= 48; i += 1) points.push(destination(center, (i / 48) * 360, radiusM));
     return points;
   };
 
-  const motifs = (points: LngLat[], kind: "cross" | "defense"): [number, number][][] => {
-    const pix = points.map((point) => map.latLngToContainerPoint(toLL(point)));
-    const spacing = 16;
-    const out: [number, number][][] = [];
-    let cursor = spacing * 0.65;
-    for (let i = 1; i < pix.length; i += 1) {
-      const from = pix[i - 1]!;
-      const to = pix[i]!;
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      const len = Math.hypot(dx, dy);
-      if (len < 0.5) continue;
-      const ux = dx / len;
-      const uy = dy / len;
-      while (cursor <= len) {
-        const x = from.x + ux * cursor;
-        const y = from.y + uy * cursor;
-        const px = -uy;
-        const py = ux;
-        if (kind === "defense") {
-          out.push([
-            [x, y],
-            [x + px * 6, y + py * 6],
-          ]);
-        } else {
-          const arm = 3.2;
-          out.push([
-            [x - (ux + px) * arm, y - (uy + py) * arm],
-            [x + (ux + px) * arm, y + (uy + py) * arm],
-          ]);
-          out.push([
-            [x - (ux - px) * arm, y - (uy - py) * arm],
-            [x + (ux - px) * arm, y + (uy - py) * arm],
-          ]);
-        }
-        cursor += spacing;
+  let markFrame = 0;
+  const scheduleMarks = () => {
+    if (markFrame) return;
+    markFrame = requestAnimationFrame(() => {
+      markFrame = 0;
+      drawMarks();
+    });
+  };
+
+  const drawMarks = () => {
+    const scenario = activeScenario(useSandbox.getState());
+    const size = map.getSize();
+    markSvg.setAttribute("width", String(size.x));
+    markSvg.setAttribute("height", String(size.y));
+    const pad = 32;
+    const minX = -pad;
+    const minY = -pad;
+    const maxX = size.x + pad;
+    const maxY = size.y + pad;
+    const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
+    const groups = new Map<string, string>();
+    for (const feature of scenario.features) {
+      if (feature.hidden || !scenario.groups[groupOf(feature)]) continue;
+      const dash = "dash" in feature ? feature.dash : "solid";
+      if (dash !== "cross" && dash !== "defense") continue;
+      const source = feature.kind === "circle" ? circleEdge(feature.center, feature.radiusM) : "points" in feature ? pathDisplay(feature) : [];
+      if (source.length < 2) continue;
+      const pix = source.map((point) => map.latLngToContainerPoint(toLL(point)));
+      let visible = 0;
+      for (let i = 1; i < pix.length; i += 1) {
+        const clip = clipSeg(pix[i - 1]!.x, pix[i - 1]!.y, pix[i]!.x, pix[i]!.y, minX, minY, maxX, maxY);
+        if (clip) visible += Math.hypot(clip.bx - clip.ax, clip.by - clip.ay);
       }
-      cursor -= len;
+      if (visible < 1) continue;
+      const spacing = Math.max(16, visible / 280);
+      const phase = spacing * 0.65;
+      let travel = 0;
+      let count = 0;
+      let d = "";
+      for (let i = 1; i < pix.length; i += 1) {
+        const from = pix[i - 1]!;
+        const to = pix[i]!;
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const len = Math.hypot(dx, dy);
+        if (len >= 0.5) {
+          const clip = clipSeg(from.x, from.y, to.x, to.y, minX, minY, maxX, maxY);
+          if (clip) {
+            const ux = dx / len;
+            const uy = dy / len;
+            const px = -uy;
+            const py = ux;
+            const begin = travel + Math.hypot(clip.ax - from.x, clip.ay - from.y);
+            const end = travel + Math.hypot(clip.bx - from.x, clip.by - from.y);
+            const stepIn = ((phase - begin) % spacing + spacing) % spacing;
+            for (let dist = begin + stepIn; dist <= end && count < 280; dist += spacing) {
+              const along = dist - travel;
+              const x = from.x + ux * along;
+              const y = from.y + uy * along;
+              if (dash === "defense") {
+                d += `M${x.toFixed(1)} ${y.toFixed(1)}l${(px * 6).toFixed(1)} ${(py * 6).toFixed(1)}`;
+              } else {
+                const arm = 3.2;
+                d += `M${(x - (ux + px) * arm).toFixed(1)} ${(y - (uy + py) * arm).toFixed(1)}l${((ux + px) * arm * 2).toFixed(1)} ${((uy + py) * arm * 2).toFixed(1)}`;
+                d += `M${(x - (ux - px) * arm).toFixed(1)} ${(y - (uy - py) * arm).toFixed(1)}l${((ux - px) * arm * 2).toFixed(1)} ${((uy - py) * arm * 2).toFixed(1)}`;
+              }
+              count += 1;
+            }
+          }
+        }
+        travel += len;
+      }
+      if (!d) continue;
+      const color = sideColor(feature.faction, tone);
+      groups.set(color, (groups.get(color) ?? "") + d);
     }
-    return out.map((segment) =>
-      segment.map((point) => {
-        const latlng = map.containerPointToLatLng(point);
-        return [latlng.lat, latlng.lng] as [number, number];
-      }),
-    );
+    const used = new Set<string>();
+    for (const [color, d] of groups) {
+      let node = markNodes.get(color);
+      if (!node) {
+        node = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        node.setAttribute("fill", "none");
+        node.setAttribute("stroke", color);
+        node.setAttribute("stroke-width", "1.35");
+        node.setAttribute("stroke-linecap", "butt");
+        markSvg.appendChild(node);
+        markNodes.set(color, node);
+      }
+      node.setAttribute("d", d);
+      used.add(color);
+    }
+    for (const [color, node] of markNodes) {
+      if (used.has(color)) continue;
+      node.remove();
+      markNodes.delete(color);
+    }
+  };
+
+  const clipSeg = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    minX: number,
+    minY: number,
+    maxX: number,
+    maxY: number,
+  ) => {
+    let t0 = 0;
+    let t1 = 1;
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const p = [-dx, dx, -dy, dy];
+    const q = [x1 - minX, maxX - x1, y1 - minY, maxY - y1];
+    for (let i = 0; i < 4; i += 1) {
+      const pi = p[i]!;
+      const qi = q[i]!;
+      if (pi === 0) {
+        if (qi < 0) return null;
+        continue;
+      }
+      const t = qi / pi;
+      if (pi < 0) {
+        if (t > t1) return null;
+        if (t > t0) t0 = t;
+      } else {
+        if (t < t0) return null;
+        if (t < t1) t1 = t;
+      }
+    }
+    return { ax: x1 + t0 * dx, ay: y1 + t0 * dy, bx: x1 + t1 * dx, by: y1 + t1 * dy };
   };
 
   const syncFeatures = () => {
@@ -450,8 +522,16 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       entry.style = style;
       const view = scenario.mode === "view";
       const select = state.tool === "select";
-      setInteractive(entry.main, select || view, select && !view);
-      if (entry.head) setInteractive(entry.head, select || view, false);
+      const hit = `${select}|${view}`;
+      if (entry.hit !== hit) {
+        setInteractive(entry.main, select || view, select && !view);
+        if (entry.head) setInteractive(entry.head, select || view, false);
+        entry.hit = hit;
+      }
+      if (entry.marks) {
+        entry.marks.remove();
+        entry.marks = undefined;
+      }
     }
     for (const [id, entry] of entries) {
       if (visible.has(id)) continue;
@@ -462,6 +542,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       entries.delete(id);
     }
     syncRanges();
+    scheduleMarks();
   };
 
   const syncRanges = () => {
@@ -994,8 +1075,11 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     const size = map.getSize();
     svg.setAttribute("width", String(size.x));
     svg.setAttribute("height", String(size.y));
+    if (!scenario.showGrid) {
+      if (svg.childNodes.length) svg.replaceChildren();
+      return;
+    }
     svg.replaceChildren();
-    if (!scenario.showGrid) return;
     const bounds = map.getBounds();
     const tone = BASEMAPS.find((item) => item.id === scenario.basemap)?.tone ?? "dark";
     const step = gridStep(map.getCenter().lat, map.getZoom());
@@ -1082,7 +1166,10 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     setHud({ zoom: map.getZoom() });
   };
 
-  map.on("move", drawGrid);
+  map.on("move", () => {
+    scheduleMarks();
+    if (activeScenario(useSandbox.getState()).showGrid) drawGrid();
+  });
   map.on("moveend", publishView);
   map.on("resize", drawGrid);
 

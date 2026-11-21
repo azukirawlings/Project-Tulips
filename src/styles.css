@@ -757,6 +757,12 @@ textarea.field {
   font-size: 10px;
   font-weight: 500;
 }
+.mark-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 450;
+  pointer-events: none;
+}
 .hill-pane { mix-blend-mode: overlay; }
 .leaflet-container { font-family: var(--font-sans); }
 .leaflet-control-attribution {

@@ -8,8 +8,6 @@ const TONES: FactionTone[] = ["friend", "foe", "neutral", "unknown"];
 
 export function Overview() {
   const scenario = useSandbox(activeScenario);
-  const patchScenario = useSandbox((state) => state.patchScenario);
-  const setFaction = useSandbox((state) => state.setFaction);
   const focusFeature = useSandbox((state) => state.focusFeature);
   const units = useMemo(() => unitsOf(scenario.features), [scenario.features]);
   const [compare, setCompare] = useState<Compare>({ kind: "factions", ids: [] });
@@ -36,42 +34,24 @@ export function Overview() {
   };
   const factionOn = (id: string) => compare.kind === "factions" && compare.ids.includes(id);
   const unitOn = (unit: UnitFeature) => compare.kind === "units" && compare.faction === unit.faction && compare.ids.includes(unit.id);
+  const subject = !compare.ids.length
+    ? "未选择"
+    : compare.kind === "factions"
+      ? compare.ids.map((id) => scenario.factions.find((item) => item.id === id)?.name || "未命名").join("、")
+      : compare.ids.map((id) => units.find((unit) => unit.id === id)?.name || "未命名").join("、");
+  const setBoard = useSandbox((state) => state.setBoard);
 
   return (
-    <div className="overview">
-      <div className="ov-stats">
-        <article>
-          <span>现有人数</span>
-          <strong>{stats.now}</strong>
-          <small>原 {stats.orig}</small>
-        </article>
-        <article>
-          <span>伤亡</span>
-          <strong>{stats.loss}</strong>
-        </article>
-        <article>
-          <span>现有装备</span>
-          <strong>{stats.gearNow}</strong>
-          <small>原 {stats.gearOrig}</small>
-        </article>
-      </div>
-      <p className="hint">点阵营可多选比较。同一阵营里的部队也可以多选。再点一次取消。跨阵营点部队时，只保留最后一支。</p>
-      {stats.rows.length ? (
-        <ul className="ov-rows">
-          {stats.rows.map((row) => (
-            <li key={row.id}>
-              <span>{row.label}</span>
-              <b>
-                {row.now}/{row.orig}
-              </b>
-              <small className={row.loss > 0 ? "loss" : ""}>{row.loss > 0 ? `损 ${row.loss}` : "无损"}</small>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="empty">点上面的阵营或部队，这里显示人数和装备。</p>
-      )}
-      <div className="org-tree">
+    <div className="board-window" role="dialog" aria-label="总览">
+      <div className="board-pick">
+        <header>
+          <strong>选择</strong>
+          <button type="button" className="icon-btn" aria-label="关闭总览" onClick={() => setBoard(false)}>
+            ×
+          </button>
+        </header>
+        <p className="hint">点阵营可多选。同一阵营的部队可多选。再点一次取消。点到另一个阵营的部队时，只保留最后一支。</p>
+        <div className="org-tree">
         {trees.map(({ faction, rows }) => {
           const id = `side:${faction.id}`;
           const expanded = open[id] !== false;
@@ -161,15 +141,60 @@ export function Overview() {
             </section>
           );
         })}
+        </div>
       </div>
+      <div className="board-data">
+        <header className="board-who">
+          <span>{compare.ids.length ? (compare.kind === "factions" ? "派系" : "部队") : "损失与状态"}</span>
+          <h2>{subject}</h2>
+        </header>
+        <div className="ov-stats">
+          <article>
+            <span>现有人数</span>
+            <strong>{stats.now}</strong>
+            <small>原 {stats.orig}</small>
+          </article>
+          <article>
+            <span>伤亡</span>
+            <strong>{stats.loss}</strong>
+          </article>
+          <article>
+            <span>现有装备</span>
+            <strong>{stats.gearNow}</strong>
+            <small>原 {stats.gearOrig}</small>
+          </article>
+        </div>
+        {stats.rows.length ? (
+          <ul className="ov-rows">
+            {stats.rows.map((row) => (
+              <li key={row.id}>
+                <span>{row.label}</span>
+                <b>
+                  {row.now}/{row.orig}
+                </b>
+                <small className={row.loss > 0 ? "loss" : ""}>{row.loss > 0 ? `损 ${row.loss}` : "无损"}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="empty">左边点一个阵营或部队，这里显示它的人数和装备。</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function SideOrg() {
+  const scenario = useSandbox(activeScenario);
+  const patchScenario = useSandbox((state) => state.patchScenario);
+  const setFaction = useSandbox((state) => state.setFaction);
+  return (
+    <div className="overview">
       <OrgEditor
         factions={scenario.factions}
         levels={scenario.levels}
         features={scenario.features}
-        onFaction={(factions, features) => {
-          patchScenario(features ? { factions, features } : { factions });
-          setCompare({ kind: "factions", ids: [] });
-        }}
+        onFaction={(factions, features) => patchScenario(features ? { factions, features } : { factions })}
         onBrush={setFaction}
         onLevels={(levels, features) => patchScenario({ levels, features })}
       />

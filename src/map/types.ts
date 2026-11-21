@@ -116,6 +116,7 @@ export type PathFeature = Base & {
   smooth: boolean;
   dash: Dash;
   widthM?: number;
+  face?: 1 | -1;
 };
 
 export type CircleFeature = Base & {
@@ -123,6 +124,7 @@ export type CircleFeature = Base & {
   center: LngLat;
   radiusM: number;
   dash: Dash;
+  face?: 1 | -1;
 };
 
 export type Feature = UnitFeature | FortFeature | LabelFeature | PathFeature | CircleFeature;

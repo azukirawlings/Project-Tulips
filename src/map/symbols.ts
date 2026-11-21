@@ -52,9 +52,11 @@ const FORT_ICONS: Record<FortType, string> = {
 function glyph(inner: string, heading: number, size: number, plate: string, ink: string, shape: "unit" | "fort"): string {
   const back =
     shape === "unit"
-      ? `<rect class="plate" x="2.4" y="5.4" width="31.2" height="24.2" rx="2" fill="${plate}" stroke="none"/>`
-      : `<circle class="plate" cx="18" cy="18" r="12.4" fill="${plate}" stroke="none"/>`;
-  return `<svg class="glyph" viewBox="0 0 36 36" style="width:${size}px;height:${size}px;transform:rotate(${heading}deg);color:${ink}" aria-hidden="true">${back}<polygon class="nose" points="18,0.8 21,4.6 15,4.6"/>${inner}</svg>`;
+      ? `<rect class="plate" x="1.2" y="4.4" width="33.6" height="28.4" rx="1.4" fill="${plate}"/>`
+      : `<circle class="plate" cx="18" cy="18" r="12.4" fill="${plate}"/>`;
+  const mark = shape === "unit" ? `<g transform="translate(18 18.6) scale(0.66) translate(-18 -18)">${inner}</g>` : inner;
+  const nose = `<polygon class="nose" points="18,1.1 21.4,4.5 14.6,4.5"/>`;
+  return `<svg class="glyph" viewBox="0 0 36 36" style="width:${size}px;height:${size}px;transform:rotate(${heading}deg);color:${ink}" aria-hidden="true">${back}${nose}${mark}</svg>`;
 }
 
 export function pointMarker(

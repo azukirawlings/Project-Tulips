@@ -12,6 +12,10 @@
 8. The overview is a tree of factions and the units under them. Open a unit to see strength on hand, authorized strength, and losses. Click a faction to include it in the total, and click it again to remove it. Units can be combined only when they belong to the same faction. A unit from another faction replaces the previous choice.
 9. Unit icons are rectangular and slightly larger than fortification icons.
 10. Editing a line no longer leaves the pointer in the grab state. Units can be selected again afterward.
+11. Unit symbols sit inside the rectangular plate, and the plate has a black border.
+12. A route name sits beside the line, not at the geometric center. A range is labeled with the owner's name and “range”. An area of effect is labeled with the work's name.
+13. A defense line can be turned to face the other side.
+14. The overview opens in its own window over the map. The left side chooses factions or units. The right side states whose losses and status are shown. Editing factions and echelons stays in the side panel.
 
 ## 1.0.5 beta
 

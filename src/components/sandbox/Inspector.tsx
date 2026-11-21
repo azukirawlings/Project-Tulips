@@ -18,7 +18,7 @@ import {
   labelOf,
 } from "@/map/types";
 import { parentChoices, unitStock, unitsOf, fitPair } from "@/map/order";
-import { Overview } from "./Overview";
+import { SideOrg } from "./Overview";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -48,7 +48,7 @@ export function Inspector() {
   if (board) {
     return (
       <aside className="panel">
-        <Overview />
+        <SideOrg />
       </aside>
     );
   }
@@ -258,6 +258,11 @@ function Properties({
             ))}
           </div>
         </Field>
+      ) : null}
+      {"dash" in feature && feature.dash === "defense" ? (
+        <button type="button" className="wide-btn" onClick={() => onPatch(feature.id, { face: feature.face === -1 ? 1 : -1 })}>
+          翻转防线朝向
+        </button>
       ) : null}
       {feature.kind === "arrow" ? (
         <Field label="箭身宽度（米）">

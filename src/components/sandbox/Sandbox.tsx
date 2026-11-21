@@ -1,12 +1,14 @@
 import { useEffect, type CSSProperties } from "react";
 import { MapChrome, StatusBar, ToolRail, TopBar } from "./Chrome";
 import { Inspector, FeatureCard } from "./Inspector";
+import { Overview } from "./Overview";
 import { MapView } from "@/map/MapView";
 import { useSandbox } from "@/map/store";
 import { luminance, mixHex } from "@/map/types";
 
 export function Sandbox() {
   const panelOpen = useSandbox((state) => state.panelOpen);
+  const board = useSandbox((state) => state.board);
   const menu = useSandbox((state) => state.menu);
   const appearance = useSandbox((state) => state.appearance);
   const setMenu = useSandbox((state) => state.setMenu);
@@ -45,6 +47,7 @@ export function Sandbox() {
         <MapView />
         <MapChrome />
         <FeatureCard />
+        {board ? <Overview /> : null}
       </div>
       <Inspector />
       <StatusBar />

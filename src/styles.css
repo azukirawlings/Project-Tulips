@@ -915,7 +915,10 @@ textarea.field {
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.mk .plate { stroke: none; }
+.mk .plate {
+  stroke: #111111;
+  stroke-width: 1.7;
+}
 .mk.worn .frame { stroke-dasharray: 2.4 2; }
 .mk .cap,
 .mk .ech {
@@ -1076,4 +1079,57 @@ textarea.field {
   .text-btn,
   .chip,
   .seg button { transition: none; }
+}
+
+.wide-btn {
+  min-height: 34px;
+  border: 1px solid var(--color-fg);
+  border-radius: var(--radius-sm);
+  background: var(--color-fg);
+  color: var(--color-bg);
+  font-weight: 600;
+}
+.board-window {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 12px;
+  width: min(880px, calc(100% - 24px));
+  height: min(640px, calc(100% - 24px));
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+.board-pick,
+.board-data {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+.board-pick { border-right: 1px solid var(--color-line); }
+.board-pick > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.board-who {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--color-fg);
+  color: var(--color-bg);
+}
+.board-who span {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+.board-who h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  line-height: 1.3;
 }

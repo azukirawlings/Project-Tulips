@@ -166,7 +166,7 @@ function featureOf(raw: unknown): Feature | null {
     const center = pair(item.center);
     const radiusM = Number(item.radiusM);
     if (!center || !Number.isFinite(radiusM)) return null;
-    return { ...shared, kind, center, radiusM: Math.max(8, radiusM), dash: dashOf(item.dash) };
+    return { ...shared, kind, center, radiusM: Math.max(8, radiusM), dash: dashOf(item.dash), ...(item.face === -1 ? { face: -1 as const } : {}) };
   }
   if (kind === "polygon" || kind === "curve" || kind === "freehand" || kind === "arrow") {
     if (!Array.isArray(item.points)) return null;
@@ -180,6 +180,7 @@ function featureOf(raw: unknown): Feature | null {
       closed: kind === "polygon" ? true : Boolean(item.closed),
       smooth: Boolean(item.smooth),
       dash: dashOf(item.dash),
+      ...(item.face === -1 ? { face: -1 as const } : {}),
       widthM: kind === "arrow" && Number.isFinite(width) ? Math.max(12, Math.min(50000, width)) : undefined,
     };
   }

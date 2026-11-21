@@ -245,6 +245,51 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     element.style.color = sideColor(feature.faction, tone);
   };
 
+  const lineLabelAt = (points: LngLat[]): LngLat => {
+    if (points.length < 2) return points[0] ?? [0, 0];
+    let total = 0;
+    const lens: number[] = [];
+    for (let i = 1; i < points.length; i += 1) {
+      const len = distMeters(points[i - 1]!, points[i]!);
+      lens.push(len);
+      total += len;
+    }
+    let remain = total / 2;
+    let mid = points[Math.floor(points.length / 2)]!;
+    let from = points[0]!;
+    let to = points[1] ?? from;
+    for (let i = 1; i < points.length; i += 1) {
+      const len = lens[i - 1]!;
+      if (remain <= len || i === points.length - 1) {
+        const t = len > 0 ? Math.min(1, remain / len) : 0;
+        from = points[i - 1]!;
+        to = points[i]!;
+        mid = [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t];
+        break;
+      }
+      remain -= len;
+    }
+    const a = map.latLngToContainerPoint(toLL(from));
+    const b = map.latLngToContainerPoint(toLL(to));
+    const p = map.latLngToContainerPoint(toLL(mid));
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const span = Math.hypot(dx, dy) || 1;
+    const at = map.containerPointToLatLng([p.x + (-dy / span) * 16, p.y + (dx / span) * 16]);
+    return fromLL(at);
+  };
+
+  const placePathLabels = () => {
+    const scenario = activeScenario(useSandbox.getState());
+    for (const feature of scenario.features) {
+      if (!("points" in feature) || feature.kind === "arrow") continue;
+      const entry = entries.get(feature.id);
+      if (!entry?.label || entry.labelMounted === false) continue;
+      const shown = "smooth" in feature && feature.smooth ? pathDisplay(feature as PathFeature) : feature.points;
+      entry.label.setLatLng?.(toLL(lineLabelAt(shown)));
+    }
+  };
+
   const paint = (entry: Entry, feature: Feature) => {
     const selected = isOn(feature.id);
     const style = styleFor(feature, selected);
@@ -285,7 +330,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       entry.label.setIcon?.(
         L.divIcon({ className: spec.className, html: spec.html, iconSize: [12, 12], iconAnchor: [6, 6] }),
       );
-      entry.label.setLatLng?.(toLL(centroidOf(feature)));
+      entry.label.setLatLng?.(toLL(feature.kind === "circle" ? feature.center : lineLabelAt("smooth" in feature && feature.smooth ? pathDisplay(feature) : feature.points)));
       entry.label.setZIndexOffset?.(selected ? 700 : -40);
       tintMarker(entry.label, feature);
     }
@@ -400,6 +445,8 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       zIndexOffset: -40,
     }).addTo(map);
     tintMarker(label as unknown as LeafletLayer, feature);
+    const at = feature.kind === "circle" ? feature.center : lineLabelAt(pathDisplay(feature));
+    label.setLatLng(toLL(at));
     return { geom: "", style: "", labelMounted: true, main, head, label: label as unknown as LeafletLayer };
   };
 
@@ -468,12 +515,13 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
         const dy = part.to.y - part.from.y;
         const len = part.len;
         if (len < 0.5) continue;
+        const side = "face" in feature && feature.face === -1 ? -1 : 1;
         const clip = clipSeg(part.from.x, part.from.y, part.to.x, part.to.y, minX, minY, maxX, maxY);
         if (!clip) continue;
         const ux = dx / len;
         const uy = dy / len;
-        const px = -uy;
-        const py = ux;
+        const px = -uy * side;
+        const py = ux * side;
         const begin = part.travel + Math.hypot(clip.ax - part.from.x, clip.ay - part.from.y);
         const end = part.travel + Math.hypot(clip.bx - part.from.x, clip.by - part.from.y);
         const stepIn = ((phase - begin) % spacing + spacing) % spacing;
@@ -706,7 +754,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     cullPoints();
   };
 
-  const addClippedRangeCircle = (center: LngLat, radiusM: number, stroke: Record<string, unknown>) => {
+  const addClippedRangeCircle = (center: LngLat, radiusM: number, stroke: Record<string, unknown>, caption?: string) => {
     const mpp = Math.max(1e-4, metersPerPixel(center[1], map.getZoom()));
     const radiusPx = radiusM / mpp;
     const size = map.getSize();
@@ -728,6 +776,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
     if (maxDist < radiusPx) return;
     if (radiusPx <= 1200) {
       rangeLayer.addLayer(L.circle(toLL(center), { ...stroke, radius: radiusM }));
+      if (caption) addRangeCaption(destination(center, 0, radiusM), caption);
       return;
     }
     const cxView = size.x * 0.5;
@@ -741,8 +790,12 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
         : Math.min(Math.PI, Math.asin(Math.min(1, viewHalfDiag / Math.max(1, distToView))) + 0.08);
     const step = Math.max(0.002, Math.min(0.05, 16 / radiusPx));
     let seg: [number, number][] = [];
+    let best: [number, number][] = [];
     const flush = () => {
-      if (seg.length >= 2) rangeLayer.addLayer(L.polyline(seg, stroke));
+      if (seg.length >= 2) {
+        rangeLayer.addLayer(L.polyline(seg, stroke));
+        if (seg.length > best.length) best = seg;
+      }
       seg = [];
     };
     for (let angle = centerAngle - span; angle <= centerAngle + span + step; angle += step) {
@@ -754,6 +807,26 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       } else flush();
     }
     flush();
+    if (caption && best.length) {
+      const mid = best[Math.floor(best.length / 2)]!;
+      addRangeCaption([mid[1], mid[0]], caption);
+    }
+  };
+
+  const addRangeCaption = (at: LngLat, text: string) => {
+    rangeLayer.addLayer(
+      L.marker(toLL(at), {
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: -20,
+        icon: L.divIcon({
+          className: "area-label",
+          html: `<span>${escText(text)}</span>`,
+          iconSize: [12, 12],
+          iconAnchor: [6, 6],
+        }),
+      }),
+    );
   };
 
   const syncRanges = () => {
@@ -767,7 +840,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
       const ranged =
         (feature.kind === "unit" && feature.unitType === "missile") || (feature.kind === "fort" && feature.fortType === "special");
       if (ranged && feature.rangeM && feature.rangeM >= 8 && "at" in feature) {
-        addClippedRangeCircle(feature.at, feature.rangeM, stroke);
+        addClippedRangeCircle(feature.at, feature.rangeM, stroke, `${feature.name || "未命名"}的射程区`);
       }
       if (feature.kind === "fort" && feature.fortType === "special" && feature.reach && feature.reach.length >= 3) {
         const ring = pathDisplay({
@@ -783,6 +856,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
           dash: "solid",
         });
         rangeLayer.addLayer(L.polygon(ring.map(toLL), stroke));
+        addRangeCaption(lineLabelAt(ring), `${feature.name || "未命名"}的作用范围`);
       }
     }
   };
@@ -1397,6 +1471,7 @@ export function mountMap(L: LeafletNS, host: HTMLElement): () => void {
   const publishView = () => {
     markSvg.style.visibility = "";
     refitVectors();
+    placePathLabels();
     cullPoints();
     syncRanges();
     scheduleMarks();
